@@ -6,7 +6,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 COPY demo ./demo
-RUN pip install --upgrade pip && pip install ".[server,celery]"
+RUN pip install --upgrade pip && pip install ".[server,celery,dramatiq,rq,ai]"
 
 EXPOSE 8800
 CMD ["queueloom", "serve", "--host", "0.0.0.0"]

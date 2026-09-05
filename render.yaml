@@ -1,0 +1,32 @@
+# Render blueprint: one web service + managed PostgreSQL.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: queueloom
+    runtime: docker
+    plan: starter
+    healthCheckPath: /v1/health
+    envVars:
+      - key: QUEUELOOM_DATABASE_URL
+        fromDatabase:
+          name: queueloom-db
+          property: connectionString
+      - key: QUEUELOOM_HOST
+        value: 0.0.0.0
+      - key: QUEUELOOM_PORT
+        value: "8800"
+      - key: QUEUELOOM_HTTPS_ONLY
+        value: "true"
+      - key: QUEUELOOM_SECRET_KEY
+        generateValue: true
+      - key: QUEUELOOM_DASHBOARD_PASSWORD
+        sync: false
+      - key: QUEUELOOM_PUBLIC_BASE_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    dockerCommand: sh -c "queueloom migrate && queueloom serve --host 0.0.0.0 --port 8800"
+
+databases:
+  - name: queueloom-db
+    plan: basic-256mb

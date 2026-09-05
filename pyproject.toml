@@ -33,6 +33,9 @@ dependencies = [
 [project.optional-dependencies]
 celery = ["celery>=5.3"]
 dramatiq = ["dramatiq>=1.16"]
+rq = ["rq>=1.16", "redis>=4.5"]
+fastapi = ["starlette>=0.37"]
+temporal = ["temporalio>=1.7"]
 server = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.29",
@@ -46,9 +49,10 @@ server = [
   "typer>=0.12",
 ]
 ai = ["anthropic>=1.0"]
-all = ["queueloom[celery,dramatiq,server,ai]"]
+all = ["queueloom[celery,dramatiq,rq,fastapi,temporal,server,ai]"]
 dev = [
-  "queueloom[celery,dramatiq,server,ai]",
+  "queueloom[celery,dramatiq,rq,fastapi,temporal,server,ai]",
+  "fakeredis>=2.20",
   "pytest>=8.0",
   "pytest-cov>=5.0",
   "ruff>=0.5",
@@ -87,7 +91,7 @@ files = ["src"]
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["celery", "celery.*", "kombu", "kombu.*", "dramatiq", "dramatiq.*"]
+module = ["celery", "celery.*", "kombu", "kombu.*", "dramatiq", "dramatiq.*", "rq", "rq.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

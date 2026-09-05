@@ -7,8 +7,9 @@ app and get a timeline of every task: queued → started → succeeded / failed 
 queue latency, duration, retry counts and full exception details, filterable by project,
 environment, task and time range.
 
-> Status: pre-alpha, under active development. Initial focus is **Celery + Redis/RabbitMQ**,
-> with a **Dramatiq** adapter included. RQ, FastAPI background tasks and Temporal are planned.
+> Status: pre-alpha, under active development. Primary focus is **Celery + Redis/RabbitMQ**;
+> adapters for **Dramatiq**, **RQ**, **FastAPI/Starlette background tasks** and **Temporal**
+> activities are included.
 
 ## Why
 
@@ -60,6 +61,18 @@ dramatiq.set_broker(broker)
 
 Install with `pip install "queueloom[dramatiq]"`. Retries, delayed messages and skipped messages
 map onto the same event model, so the dashboard looks identical for both frameworks.
+
+### Other frameworks
+
+| Framework | Install | How |
+|---|---|---|
+| **RQ** | `queueloom[rq]` | `from queueloom.sdk.rq import instrument, QueueLoomQueue, QueueLoomWorker`; call `instrument(...)`, enqueue with `QueueLoomQueue`, run `rq worker -w queueloom.sdk.rq.QueueLoomWorker --queue-class queueloom.sdk.rq.QueueLoomQueue`. Retries, `enqueue_at`/`enqueue_in` and `Retry` return values are tracked. |
+| **FastAPI / Starlette background tasks** | `queueloom[fastapi]` | `from queueloom.sdk.fastapi import add_task, instrument`; `add_task(background_tasks, func, *args)` instead of `background_tasks.add_task(...)`. Each task is a run on the `background` queue. |
+| **Temporal** | `queueloom[temporal]` | `from queueloom.sdk.temporal import instrument`; pass the returned interceptor in `Worker(interceptors=[...])`. One run per activity execution; attempts fold into retries; schedule-to-start is the queue latency. |
+
+Every adapter reads `QUEUELOOM_ENDPOINT`, `QUEUELOOM_API_KEY` and `QUEUELOOM_ENVIRONMENT`
+when called without arguments, and never raises into your job code: on transport problems events
+are counted and dropped.
 
 ### Try it without any infrastructure
 
@@ -254,6 +267,12 @@ PostgreSQL example: `postgresql+psycopg://user:pass@host:5432/queueloom`.
 
 Authenticate with `Authorization: Bearer <api key>`.
 
+## Deploying
+
+QueueLoom is one web process plus PostgreSQL. Configs for Fly.io (`fly.toml`), Render
+(`render.yaml`) and Heroku-style platforms (`Procfile`) are included, plus the `Dockerfile`.
+See [docs/DEPLOY.md](docs/DEPLOY.md) for the environment variables and the exact commands.
+
 ## Development
 
 ```bash
@@ -275,8 +294,9 @@ memory broker, so SDK behaviour is verified end to end without Docker.
 - [ ] Retention / cleanup job for old events
 - [x] AI incident summaries on top of a deterministic diagnosis
 - [x] Dramatiq adapter
-- [ ] Adapters: RQ, FastAPI `BackgroundTasks`, Temporal
-- [ ] Hosted version (QueueLoom Cloud)
+- [x] RQ, FastAPI `BackgroundTasks` and Temporal adapters
+- [x] Deployment configs (Fly.io, Render, Heroku, Docker) for self-hosting
+- [ ] Hosted multi-tenant service (QueueLoom Cloud): sign-up, per-user projects, billing
 
 ## License
 
