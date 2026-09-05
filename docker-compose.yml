@@ -1,0 +1,66 @@
+# Full demo stack: PostgreSQL + Redis + QueueLoom server + an instrumented Celery worker +
+# a producer that keeps enqueuing tasks. `docker compose up --build` then open
+# http://localhost:8800/projects/demo
+x-demo-env: &demo-env
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  QUEUELOOM_ENDPOINT: http://server:8800
+  QUEUELOOM_API_KEY: ql_demo_key_change_me
+  QUEUELOOM_ENVIRONMENT: docker-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: queueloom
+      POSTGRES_PASSWORD: queueloom
+      POSTGRES_DB: queueloom
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queueloom"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build: .
+    environment:
+      QUEUELOOM_DATABASE_URL: postgresql+psycopg://queueloom:queueloom@postgres:5432/queueloom
+      QUEUELOOM_API_KEY: ql_demo_key_change_me
+    command: >
+      sh -c "queueloom project create demo --api-key $$QUEUELOOM_API_KEY --if-not-exists
+             && queueloom serve --host 0.0.0.0"
+    ports:
+      - "8800:8800"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8800/v1/health')\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    build: .
+    environment: *demo-env
+    command: celery -A demo.tasks worker -l info -Q default,reports --concurrency 2
+    depends_on:
+      redis:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+
+  producer:
+    build: .
+    environment: *demo-env
+    command: python demo/producer.py --rate 3
+    depends_on:
+      - worker

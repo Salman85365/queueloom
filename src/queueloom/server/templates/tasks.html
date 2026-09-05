@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block autorefresh %}1{% endblock %}
+{% block title %}{{ project.name }} · tasks{% endblock %}
+{% block content %}
+<h1>Tasks <span class="muted">· {{ total }} in last {{ filters.range }}</span></h1>
+{% set show_state = True %}{% include "_filters.html" %}
+{% if runs %}
+<table>
+  <thead><tr><th>Last event</th><th>State</th><th>Task</th><th>Queue</th><th>Env</th><th class="num">Latency</th><th class="num">Duration</th><th class="num">Retries</th><th>Error</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+  <tr>
+    <td class="muted" title="{{ r.last_event_at|ts }}">{{ ago(r.last_event_at) }}</td>
+    <td><span class="badge {{ r.state }}">{{ r.state }}</span></td>
+    <td><a class="mono" href="/projects/{{ project.name }}/tasks/{{ r.task_id }}">{{ r.task_name or r.task_id }}</a></td>
+    <td class="muted">{{ r.queue or '–' }}</td>
+    <td>{{ r.environment }}</td>
+    <td class="num">{{ r.queue_latency_ms|ms }}</td>
+    <td class="num">{{ r.duration_ms|ms }}</td>
+    <td class="num">{{ r.retries }}</td>
+    <td>{% if r.exception_type %}<span class="mono">{{ r.exception_type }}</span> <span class="muted">{{ (r.exception_message or '')[:80] }}</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="pager">
+  {% set qs = request.url.include_query_params(page=page-1).query %}
+  {% if page > 1 %}<a href="?{{ qs }}">← newer</a>{% endif %}
+  <span>page {{ page }} of {{ pages }}</span>
+  {% set qs2 = request.url.include_query_params(page=page+1).query %}
+  {% if page < pages %}<a href="?{{ qs2 }}">older →</a>{% endif %}
+</div>
+{% else %}
+<div class="empty">No task runs match these filters.</div>
+{% endif %}
+{% endblock %}

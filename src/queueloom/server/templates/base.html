@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}QueueLoom{% endblock %}</title>
+{% if refresh_seconds and refresh_seconds > 0 and self.autorefresh() %}<meta http-equiv="refresh" content="{{ refresh_seconds }}">{% endif %}
+<style>
+:root{--bg:#0f1117;--panel:#171a23;--line:#262a36;--fg:#e6e8ee;--muted:#8b91a3;--accent:#7c9cff;
+--ok:#3ecf8e;--bad:#ff6b6b;--warn:#ffb454;--info:#7c9cff;--dim:#5c6275;font-size:14px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+header{display:flex;align-items:center;gap:1.25rem;padding:.75rem 1.25rem;border-bottom:1px solid var(--line);background:var(--panel)}
+header .brand{font-weight:700;letter-spacing:.02em;color:var(--fg)}header .brand span{color:var(--accent)}
+header nav a{margin-right:1rem;color:var(--muted)}header nav a.active,header nav a:hover{color:var(--fg)}
+header select{margin-left:auto}
+main{padding:1.25rem;max-width:1400px;margin:0 auto}
+h1{font-size:1.25rem;margin:0 0 1rem}h2{font-size:1rem;margin:1.5rem 0 .5rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.filters{display:flex;flex-wrap:wrap;gap:.5rem;align-items:end;margin-bottom:1rem}
+.filters label{display:flex;flex-direction:column;font-size:.75rem;color:var(--muted);gap:.2rem}
+select,input,button{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.4rem .5rem;font:inherit}
+button{cursor:pointer;background:var(--accent);color:#0f1117;border-color:var(--accent);font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.75rem 1rem}
+.card .label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.card .value{font-size:1.5rem;font-weight:700;margin-top:.15rem}
+.card.ok .value{color:var(--ok)}.card.bad .value{color:var(--bad)}.card.warn .value{color:var(--warn)}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{padding:.5rem .75rem;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;font-variant-numeric:tabular-nums}
+th{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+tr:last-child td{border-bottom:0}tbody tr:hover{background:#1c2030}
+td.num,th.num{text-align:right}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em}
+.badge{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:var(--dim);color:#0f1117}
+.badge.succeeded{background:var(--ok)}.badge.failed{background:var(--bad)}.badge.retrying{background:var(--warn)}
+.badge.started{background:var(--info)}.badge.queued{background:#9aa3b8}.badge.revoked{background:#c48bff}
+.muted{color:var(--muted)}.empty{padding:2rem;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:8px}
+pre{background:#0b0d13;border:1px solid var(--line);border-radius:8px;padding:.75rem;overflow:auto;font-size:.8rem;line-height:1.4}
+.timeline{list-style:none;padding:0;margin:0}.timeline li{display:grid;grid-template-columns:200px 120px 1fr;gap:1rem;padding:.4rem 0;border-bottom:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:.25rem 1rem}.kv dt{color:var(--muted)}.kv dd{margin:0}
+.pager{display:flex;gap:1rem;align-items:center;margin-top:.75rem;color:var(--muted)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;display:flex}
+.bar i{display:block;height:100%}.bar .succeeded{background:var(--ok)}.bar .failed{background:var(--bad)}
+.bar .retrying{background:var(--warn)}.bar .started{background:var(--info)}.bar .queued{background:#9aa3b8}.bar .revoked{background:#c48bff}
+footer{padding:1rem 1.25rem;color:var(--dim);font-size:.75rem}
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">Queue<span>Loom</span></a>
+  {% if project %}
+  <nav>
+    <a href="/projects/{{ project.name }}" class="{% if request.url.path == '/projects/' ~ project.name %}active{% endif %}">Overview</a>
+    <a href="/projects/{{ project.name }}/tasks" class="{% if '/tasks' in request.url.path %}active{% endif %}">Tasks</a>
+    <a href="/docs">API</a>
+  </nav>
+  <select onchange="location.href='/projects/'+this.value">
+    {% for p in projects %}<option value="{{ p.name }}" {% if p.id == project.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
+</header>
+<main>{% block content %}{% endblock %}</main>
+<footer>QueueLoom · times in UTC{% if project %} · auto-refresh every {{ refresh_seconds }}s{% endif %}</footer>
+</body>
+</html>
+{% block autorefresh %}{% endblock %}

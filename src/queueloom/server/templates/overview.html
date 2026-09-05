@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block autorefresh %}1{% endblock %}
+{% block title %}{{ project.name }} · overview{% endblock %}
+{% block content %}
+<h1>{{ project.name }} <span class="muted">· last {{ filters.range }}</span></h1>
+{% set show_state = False %}{% include "_filters.html" %}
+
+<div class="cards">
+  <div class="card"><div class="label">Runs</div><div class="value">{{ stats.total }}</div></div>
+  <div class="card ok"><div class="label">Succeeded</div><div class="value">{{ stats.by_state.succeeded }}</div></div>
+  <div class="card bad"><div class="label">Failed</div><div class="value">{{ stats.by_state.failed }}</div></div>
+  <div class="card warn"><div class="label">Retrying</div><div class="value">{{ stats.by_state.retrying }}</div></div>
+  <div class="card"><div class="label">Queued / running</div><div class="value">{{ stats.by_state.queued + stats.by_state.started }}</div></div>
+  <div class="card {% if stats.failure_rate and stats.failure_rate > 0.05 %}bad{% endif %}"><div class="label">Failure rate</div><div class="value">{{ stats.failure_rate|pct }}</div></div>
+  <div class="card"><div class="label">p50 / p95 duration</div><div class="value">{{ stats.p50_duration_ms|ms }} <span class="muted">/</span> {{ stats.p95_duration_ms|ms }}</div></div>
+  <div class="card"><div class="label">p95 queue latency</div><div class="value">{{ stats.p95_queue_latency_ms|ms }}</div></div>
+  <div class="card"><div class="label">Retries</div><div class="value">{{ stats.total_retries }}</div></div>
+</div>
+{% if stats.total %}
+<div class="bar" style="margin-top:.75rem" title="state mix">
+  {% for s, n in stats.by_state.items() %}{% if n %}<i class="{{ s }}" style="width:{{ (100 * n / stats.total)|round(2) }}%" title="{{ s }}: {{ n }}"></i>{% endif %}{% endfor %}
+</div>
+{% endif %}
+{% if stats.sampled %}<p class="muted">Percentiles computed from the most recent sample of runs.</p>{% endif %}
+
+<h2>By task</h2>
+{% if stats.by_task %}
+<table>
+  <thead><tr><th>Task</th><th class="num">Runs</th><th class="num">Failed</th><th class="num">Failure rate</th><th class="num">Avg</th><th class="num">p50</th><th class="num">p95</th><th class="num">p95 latency</th></tr></thead>
+  <tbody>
+  {% for t in stats.by_task %}
+  <tr>
+    <td><a class="mono" href="/projects/{{ project.name }}/tasks?task_name={{ t.task_name|urlencode }}&range={{ filters.range }}&environment={{ filters.environment|urlencode }}">{{ t.task_name }}</a></td>
+    <td class="num">{{ t.total }}</td>
+    <td class="num" {% if t.failed %}style="color:var(--bad)"{% endif %}>{{ t.failed }}</td>
+    <td class="num">{{ t.failure_rate|pct }}</td>
+    <td class="num">{{ t.avg_duration_ms|ms }}</td>
+    <td class="num">{{ t.p50_duration_ms|ms }}</td>
+    <td class="num">{{ t.p95_duration_ms|ms }}</td>
+    <td class="num">{{ t.p95_latency_ms|ms }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">No runs in this window yet. Instrument a Celery app with <span class="mono">queueloom.sdk.celery.instrument(...)</span> and run some tasks.</div>
+{% endif %}
+
+<h2>Recent failures</h2>
+{% if recent_failures %}
+<table>
+  <thead><tr><th>When</th><th>Task</th><th>Exception</th><th>Env</th><th class="num">Retries</th></tr></thead>
+  <tbody>
+  {% for r in recent_failures %}
+  <tr>
+    <td class="muted" title="{{ r.finished_at|ts }}">{{ ago(r.finished_at or r.last_event_at) }}</td>
+    <td><a class="mono" href="/projects/{{ project.name }}/tasks/{{ r.task_id }}">{{ r.task_name }}</a></td>
+    <td><span class="mono">{{ r.exception_type }}</span> <span class="muted">{{ (r.exception_message or '')[:120] }}</span></td>
+    <td>{{ r.environment }}</td>
+    <td class="num">{{ r.retries }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No failures in this window.</p>
+{% endif %}
+{% endblock %}

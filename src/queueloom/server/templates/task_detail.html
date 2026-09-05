@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ run.task_name }} · {{ run.task_id[:8] }}{% endblock %}
+{% block content %}
+<h1><span class="badge {{ run.state }}">{{ run.state }}</span> <span class="mono">{{ run.task_name }}</span></h1>
+<dl class="kv">
+  <dt>Task id</dt><dd class="mono">{{ run.task_id }}</dd>
+  <dt>Environment</dt><dd>{{ run.environment }}</dd>
+  <dt>Queue</dt><dd>{{ run.queue or '–' }}</dd>
+  <dt>Worker</dt><dd>{{ run.worker or '–' }}</dd>
+  <dt>Published</dt><dd>{{ run.published_at|ts }}</dd>
+  <dt>Started</dt><dd>{{ run.started_at|ts }}</dd>
+  <dt>Finished</dt><dd>{{ run.finished_at|ts }}</dd>
+  <dt>Queue latency</dt><dd>{{ run.queue_latency_ms|ms }}</dd>
+  <dt>Duration</dt><dd>{{ run.duration_ms|ms }}</dd>
+  <dt>Retries / attempts</dt><dd>{{ run.retries }} / {{ run.attempts }}</dd>
+  {% if run.eta %}<dt>ETA</dt><dd>{{ run.eta|ts }}</dd>{% endif %}
+  {% if run.parent_id and run.parent_id != run.task_id %}<dt>Parent</dt><dd><a class="mono" href="/projects/{{ project.name }}/tasks/{{ run.parent_id }}">{{ run.parent_id }}</a></dd>{% endif %}
+  {% if run.root_id and run.root_id != run.task_id %}<dt>Root</dt><dd><a class="mono" href="/projects/{{ project.name }}/tasks/{{ run.root_id }}">{{ run.root_id }}</a></dd>{% endif %}
+  {% if run.args_repr %}<dt>Args</dt><dd class="mono">{{ run.args_repr }}</dd>{% endif %}
+  {% if run.kwargs_repr %}<dt>Kwargs</dt><dd class="mono">{{ run.kwargs_repr }}</dd>{% endif %}
+</dl>
+
+{% if run.exception_type %}
+<h2>Exception</h2>
+<p><span class="mono">{{ run.exception_type }}</span>: {{ run.exception_message }}</p>
+{% if run.traceback %}<pre>{{ run.traceback }}</pre>{% endif %}
+{% endif %}
+
+<h2>Timeline</h2>
+<ul class="timeline">
+{% for e in events %}
+  <li>
+    <span class="mono muted">{{ e.timestamp|ts }}</span>
+    <span class="badge {{ e.event_type.split('.')[-1] }}">{{ e.event_type.split('.')[-1] }}</span>
+    <span class="muted">
+      {% if e.payload.worker %}on {{ e.payload.worker }}{% endif %}
+      {% if e.payload.runtime_ms is not none %}· {{ e.payload.runtime_ms|ms }}{% endif %}
+      {% if e.payload.retries %}· retries={{ e.payload.retries }}{% endif %}
+      {% if e.payload.exception %}· {{ e.payload.exception.type }}: {{ e.payload.exception.message[:100] }}{% endif %}
+    </span>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

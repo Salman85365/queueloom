@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}QueueLoom · projects{% endblock %}
+{% block content %}
+<h1>Projects</h1>
+{% if projects %}
+<table>
+  <thead><tr><th>Name</th><th>Created</th><th></th></tr></thead>
+  <tbody>
+  {% for p in projects %}
+  <tr><td><a href="/projects/{{ p.name }}">{{ p.name }}</a></td><td class="muted">{{ p.created_at|ts }}</td><td><a href="/projects/{{ p.name }}/tasks">tasks →</a></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">No projects yet. Create one with <span class="mono">queueloom project create &lt;name&gt;</span> and point the SDK at this server.</div>
+{% endif %}
+{% endblock %}
