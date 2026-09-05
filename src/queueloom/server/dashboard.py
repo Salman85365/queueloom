@@ -9,9 +9,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
 
+from queueloom.server.alerts import measure
 from queueloom.server.deps import SessionDep
-from queueloom.server.models import RunState
+from queueloom.server.models import AlertEvent, AlertRule, RunState
 from queueloom.server.projects import get_project_by_name, list_projects
 from queueloom.server.queries import (
     RunFilters,
@@ -183,3 +185,27 @@ def task_detail(name: str, task_id: str, request: Request, session: SessionDep) 
     ctx = _common_context(request, session, project)
     ctx.update({"run": run, "events": events})
     return templates.TemplateResponse(request, "task_detail.html", ctx)
+
+
+@router.get("/projects/{name}/alerts", response_class=HTMLResponse)
+def alerts_page(name: str, request: Request, session: SessionDep) -> Any:
+    project = _project_or_404(session, name)
+    now = datetime.now(UTC)
+    rules = list(
+        session.scalars(
+            select(AlertRule).where(AlertRule.project_id == project.id).order_by(AlertRule.id)
+        )
+    )
+    current = {rule.id: measure(session, rule, now) for rule in rules}
+    events = list(
+        session.scalars(
+            select(AlertEvent)
+            .where(AlertEvent.project_id == project.id)
+            .order_by(AlertEvent.id.desc())
+            .limit(50)
+        )
+    )
+    rule_names = {rule.id: rule.name for rule in rules}
+    ctx = _common_context(request, session, project)
+    ctx.update({"rules": rules, "current": current, "events": events, "rule_names": rule_names})
+    return templates.TemplateResponse(request, "alerts.html", ctx)

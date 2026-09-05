@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -13,6 +13,8 @@ app = typer.Typer(
 )
 project_app = typer.Typer(help="Manage projects and API keys.", no_args_is_help=True)
 app.add_typer(project_app, name="project")
+alert_app = typer.Typer(help="Manage failure-rate alert rules.", no_args_is_help=True)
+app.add_typer(alert_app, name="alert")
 
 
 def _version(value: bool) -> None:
@@ -112,6 +114,137 @@ def project_list() -> None:
             return
         for project in projects:
             typer.echo(f"{project.id}\t{project.name}\t{project.created_at.isoformat()}")
+
+
+def _project_or_exit(session: Any, name: str) -> Any:
+    from queueloom.server.projects import get_project_by_name
+
+    project = get_project_by_name(session, name)
+    if project is None:
+        typer.echo(f"Project '{name}' not found.", err=True)
+        raise typer.Exit(code=1)
+    return project
+
+
+@alert_app.command("create")
+def alert_create(
+    project: Annotated[str, typer.Argument(help="Project name.")],
+    webhook_url: Annotated[str, typer.Option(help="URL to POST alert payloads to.")],
+    name: Annotated[str | None, typer.Option(help="Rule name (default: derived).")] = None,
+    threshold: Annotated[float, typer.Option(help="Failure rate 0..1 that fires.")] = 0.1,
+    window: Annotated[int, typer.Option(help="Sliding window in minutes.")] = 15,
+    min_runs: Annotated[int, typer.Option(help="Minimum finished runs to evaluate.")] = 10,
+    cooldown: Annotated[int, typer.Option(help="Minutes before re-firing after resolve.")] = 30,
+    environment: Annotated[str | None, typer.Option(help="Limit to an environment.")] = None,
+    task_name: Annotated[str | None, typer.Option(help="Limit to a task name.")] = None,
+    fmt: Annotated[str, typer.Option("--format", help="json or slack")] = "json",
+    secret: Annotated[
+        str | None, typer.Option(help="HMAC secret for X-QueueLoom-Signature.")
+    ] = None,
+) -> None:
+    """Create an alert rule."""
+    from queueloom.server.alerts import WEBHOOK_FORMATS
+    from queueloom.server.config import Settings
+    from queueloom.server.db import init_db, make_engine, make_session_factory, session_scope
+    from queueloom.server.models import AlertRule
+
+    if fmt not in WEBHOOK_FORMATS:
+        typer.echo(f"--format must be one of {WEBHOOK_FORMATS}", err=True)
+        raise typer.Exit(code=2)
+    if not webhook_url.startswith(("http://", "https://")):
+        typer.echo("--webhook-url must start with http:// or https://", err=True)
+        raise typer.Exit(code=2)
+    engine = make_engine(Settings().database_url)
+    init_db(engine)
+    with session_scope(make_session_factory(engine)) as session:
+        proj = _project_or_exit(session, project)
+        rule = AlertRule(
+            project_id=proj.id,
+            name=name or f"failure-rate>{threshold:g} {task_name or 'all'}",
+            environment=environment,
+            task_name=task_name,
+            window_minutes=window,
+            threshold=threshold,
+            min_runs=min_runs,
+            cooldown_minutes=cooldown,
+            webhook_url=webhook_url,
+            webhook_format=fmt,
+            webhook_secret=secret,
+        )
+        session.add(rule)
+        session.flush()
+        typer.echo(f"Created alert rule #{rule.id} '{rule.name}' for project {project}")
+
+
+@alert_app.command("list")
+def alert_list(project: Annotated[str, typer.Argument(help="Project name.")]) -> None:
+    """List alert rules for a project."""
+    from sqlalchemy import select
+
+    from queueloom.server.config import Settings
+    from queueloom.server.db import init_db, make_engine, make_session_factory, session_scope
+    from queueloom.server.models import AlertRule
+
+    engine = make_engine(Settings().database_url)
+    init_db(engine)
+    with session_scope(make_session_factory(engine)) as session:
+        proj = _project_or_exit(session, project)
+        rules = list(
+            session.scalars(
+                select(AlertRule).where(AlertRule.project_id == proj.id).order_by(AlertRule.id)
+            )
+        )
+        if not rules:
+            typer.echo("No alert rules.")
+            return
+        for r in rules:
+            scope = f"{r.environment or '*'}/{r.task_name or '*'}"
+            typer.echo(
+                f"#{r.id}\t{r.name}\t{r.state}\t{scope}\t>={r.threshold:g} over {r.window_minutes}m"
+                f"\t{r.webhook_format} {r.webhook_url}"
+            )
+
+
+@alert_app.command("delete")
+def alert_delete(
+    project: Annotated[str, typer.Argument(help="Project name.")],
+    rule_id: Annotated[int, typer.Argument(help="Rule id.")],
+) -> None:
+    """Delete an alert rule."""
+    from sqlalchemy import select
+
+    from queueloom.server.config import Settings
+    from queueloom.server.db import make_engine, make_session_factory, session_scope
+    from queueloom.server.models import AlertRule
+
+    engine = make_engine(Settings().database_url)
+    with session_scope(make_session_factory(engine)) as session:
+        proj = _project_or_exit(session, project)
+        rule = session.scalar(
+            select(AlertRule).where(AlertRule.id == rule_id, AlertRule.project_id == proj.id)
+        )
+        if rule is None:
+            typer.echo(f"Rule #{rule_id} not found in project {project}.", err=True)
+            raise typer.Exit(code=1)
+        session.delete(rule)
+    typer.echo(f"Deleted alert rule #{rule_id}")
+
+
+@alert_app.command("evaluate")
+def alert_evaluate() -> None:
+    """Evaluate all enabled rules once and deliver webhooks (cron-friendly)."""
+    from queueloom.server.alerts import run_evaluation
+    from queueloom.server.config import Settings
+    from queueloom.server.db import make_engine, make_session_factory
+
+    settings = Settings()
+    engine = make_engine(settings.database_url)
+    ids = run_evaluation(
+        make_session_factory(engine),
+        base_url=settings.public_base_url,
+        timeout=settings.webhook_timeout_seconds,
+    )
+    typer.echo(f"{len(ids)} alert event(s) emitted")
 
 
 if __name__ == "__main__":

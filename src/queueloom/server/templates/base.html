@@ -34,6 +34,7 @@ td.num,th.num{text-align:right}
 .badge{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:var(--dim);color:#0f1117}
 .badge.succeeded{background:var(--ok)}.badge.failed{background:var(--bad)}.badge.retrying{background:var(--warn)}
 .badge.started{background:var(--info)}.badge.queued{background:#9aa3b8}.badge.revoked{background:#c48bff}
+.badge.ok{background:var(--ok)}.badge.firing{background:var(--bad)}.badge.fired{background:var(--bad)}.badge.resolved{background:var(--ok)}.badge.test{background:#9aa3b8}.badge.disabled{background:var(--dim)}
 .muted{color:var(--muted)}.empty{padding:2rem;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:8px}
 pre{background:#0b0d13;border:1px solid var(--line);border-radius:8px;padding:.75rem;overflow:auto;font-size:.8rem;line-height:1.4}
 .timeline{list-style:none;padding:0;margin:0}.timeline li{display:grid;grid-template-columns:200px 120px 1fr;gap:1rem;padding:.4rem 0;border-bottom:1px solid var(--line)}
@@ -52,6 +53,7 @@ footer{padding:1rem 1.25rem;color:var(--dim);font-size:.75rem}
   <nav>
     <a href="/projects/{{ project.name }}" class="{% if request.url.path == '/projects/' ~ project.name %}active{% endif %}">Overview</a>
     <a href="/projects/{{ project.name }}/tasks" class="{% if '/tasks' in request.url.path %}active{% endif %}">Tasks</a>
+    <a href="/projects/{{ project.name }}/alerts" class="{% if '/alerts' in request.url.path %}active{% endif %}">Alerts</a>
     <a href="/docs">API</a>
   </nav>
   <select onchange="location.href='/projects/'+this.value">

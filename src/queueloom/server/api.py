@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
 
 from queueloom import __version__
 from queueloom.events import SCHEMA_VERSION, EventBatch
+from queueloom.server.alerts import (
+    WEBHOOK_FORMATS,
+    build_payload,
+    deliver,
+    evaluate_all,
+    measure,
+)
 from queueloom.server.deps import ProjectDep, SessionDep
 from queueloom.server.ingest import ingest_events
-from queueloom.server.models import TaskEventRow, TaskRun
+from queueloom.server.models import AlertEvent, AlertRule, TaskEventRow, TaskRun
 from queueloom.server.queries import (
     RunFilters,
     compute_stats,
@@ -159,3 +168,174 @@ def stats(
     return compute_stats(
         session, project.id, filters, sample_limit=settings.stats_sample_limit
     ).to_dict()
+
+
+# -- alerts ------------------------------------------------------------------------------------
+
+
+class AlertRuleIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    environment: str | None = Field(default=None, max_length=64)
+    task_name: str | None = Field(default=None, max_length=255)
+    window_minutes: int = Field(default=15, ge=1, le=7 * 24 * 60)
+    threshold: float = Field(default=0.1, ge=0.0, le=1.0)
+    min_runs: int = Field(default=10, ge=1)
+    cooldown_minutes: int = Field(default=30, ge=0)
+    webhook_url: str = Field(max_length=2000)
+    webhook_format: str = "json"
+    webhook_secret: str | None = Field(default=None, max_length=200)
+    enabled: bool = True
+
+    @field_validator("webhook_url")
+    @classmethod
+    def _http_only(cls, value: str) -> str:
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("webhook_url must start with http:// or https://")
+        return value
+
+    @field_validator("webhook_format")
+    @classmethod
+    def _known_format(cls, value: str) -> str:
+        if value not in WEBHOOK_FORMATS:
+            raise ValueError(f"webhook_format must be one of {WEBHOOK_FORMATS}")
+        return value
+
+
+def rule_to_dict(rule: AlertRule) -> dict[str, Any]:
+    return {
+        "id": rule.id,
+        "name": rule.name,
+        "environment": rule.environment,
+        "task_name": rule.task_name,
+        "window_minutes": rule.window_minutes,
+        "threshold": rule.threshold,
+        "min_runs": rule.min_runs,
+        "cooldown_minutes": rule.cooldown_minutes,
+        "webhook_url": rule.webhook_url,
+        "webhook_format": rule.webhook_format,
+        "has_secret": bool(rule.webhook_secret),
+        "enabled": rule.enabled,
+        "state": rule.state,
+        "last_evaluated_at": rule.last_evaluated_at,
+        "last_triggered_at": rule.last_triggered_at,
+        "last_resolved_at": rule.last_resolved_at,
+        "created_at": rule.created_at,
+    }
+
+
+def alert_event_to_dict(event: AlertEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "rule_id": event.rule_id,
+        "kind": event.kind,
+        "created_at": event.created_at,
+        "failure_rate": event.failure_rate,
+        "failed": event.failed,
+        "finished": event.finished,
+        "window_since": event.window_since,
+        "window_until": event.window_until,
+        "delivered": event.delivered,
+        "delivery_status": event.delivery_status,
+    }
+
+
+def _rule_or_404(session: SessionDep, project: ProjectDep, rule_id: int) -> AlertRule:
+    rule = session.scalar(
+        select(AlertRule).where(AlertRule.id == rule_id, AlertRule.project_id == project.id)
+    )
+    if rule is None:
+        raise HTTPException(status_code=404, detail="alert rule not found")
+    return rule
+
+
+@router.post("/alerts", status_code=status.HTTP_201_CREATED)
+def create_alert(body: AlertRuleIn, session: SessionDep, project: ProjectDep) -> dict[str, Any]:
+    rule = AlertRule(project_id=project.id, **body.model_dump())
+    session.add(rule)
+    session.flush()
+    return rule_to_dict(rule)
+
+
+@router.get("/alerts")
+def list_alerts(session: SessionDep, project: ProjectDep) -> dict[str, Any]:
+    rules = session.scalars(
+        select(AlertRule).where(AlertRule.project_id == project.id).order_by(AlertRule.id)
+    )
+    return {"items": [rule_to_dict(r) for r in rules]}
+
+
+@router.get("/alerts/{rule_id}")
+def get_alert(rule_id: int, session: SessionDep, project: ProjectDep) -> dict[str, Any]:
+    rule = _rule_or_404(session, project, rule_id)
+    data = rule_to_dict(rule)
+    data["current"] = measure(session, rule, datetime.now(UTC)).__dict__
+    return data
+
+
+@router.delete("/alerts/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_alert(rule_id: int, session: SessionDep, project: ProjectDep) -> None:
+    session.delete(_rule_or_404(session, project, rule_id))
+
+
+@router.get("/alerts/{rule_id}/events")
+def alert_events(
+    rule_id: int,
+    session: SessionDep,
+    project: ProjectDep,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+) -> dict[str, Any]:
+    _rule_or_404(session, project, rule_id)
+    events = session.scalars(
+        select(AlertEvent)
+        .where(AlertEvent.rule_id == rule_id)
+        .order_by(AlertEvent.id.desc())
+        .limit(limit)
+    )
+    return {"items": [alert_event_to_dict(e) for e in events]}
+
+
+@router.post("/alerts/{rule_id}/test")
+def test_alert(
+    rule_id: int, request: Request, session: SessionDep, project: ProjectDep
+) -> dict[str, Any]:
+    """Send a test payload to the rule's webhook and report the delivery result."""
+    rule = _rule_or_404(session, project, rule_id)
+    now = datetime.now(UTC)
+    m = measure(session, rule, now)
+    event = AlertEvent(
+        rule_id=rule.id,
+        project_id=project.id,
+        kind="test",
+        created_at=now,
+        failure_rate=m.failure_rate,
+        failed=m.failed,
+        finished=m.finished,
+        window_since=m.since,
+        window_until=m.until,
+    )
+    session.add(event)
+    session.flush()
+    settings = request.app.state.settings
+    client: httpx.Client = getattr(request.app.state, "webhook_client", None) or httpx.Client(
+        timeout=settings.webhook_timeout_seconds
+    )
+    deliver(rule, event, build_payload(rule, event, project, settings.public_base_url), client)
+    return alert_event_to_dict(event)
+
+
+@router.post("/alerts/evaluate")
+def evaluate_alerts(request: Request, session: SessionDep, project: ProjectDep) -> dict[str, Any]:
+    """Evaluate this project's rules now and deliver any resulting webhooks."""
+    now = datetime.now(UTC)
+    events = evaluate_all(session, now, project_id=project.id)
+    settings = request.app.state.settings
+    client: httpx.Client = getattr(request.app.state, "webhook_client", None) or httpx.Client(
+        timeout=settings.webhook_timeout_seconds
+    )
+    for event in events:
+        rule = session.get(AlertRule, event.rule_id)
+        if rule is not None:
+            deliver(
+                rule, event, build_payload(rule, event, project, settings.public_base_url), client
+            )
+    return {"evaluated_at": now, "events": [alert_event_to_dict(e) for e in events]}

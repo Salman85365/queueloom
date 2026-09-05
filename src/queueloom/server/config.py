@@ -17,3 +17,9 @@ class Settings(BaseSettings):
     dashboard_refresh_seconds: int = 15
     # Upper bound on runs scanned for percentile statistics in one request.
     stats_sample_limit: int = 50_000
+    # How often the server evaluates alert rules in the background. 0 disables the loop
+    # (use `queueloom alert evaluate` from cron or POST /v1/alerts/evaluate instead).
+    alert_eval_interval_seconds: int = 30
+    webhook_timeout_seconds: float = 10.0
+    # Public URL of this server, used for links inside webhook payloads.
+    public_base_url: str | None = None

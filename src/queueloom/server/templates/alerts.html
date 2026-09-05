@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block autorefresh %}1{% endblock %}
+{% block title %}{{ project.name }} · alerts{% endblock %}
+{% block content %}
+<h1>Alerts</h1>
+{% if rules %}
+<table>
+  <thead><tr><th>State</th><th>Rule</th><th>Scope</th><th>Condition</th><th class="num">Current</th><th>Webhook</th><th>Last fired</th><th>Last resolved</th></tr></thead>
+  <tbody>
+  {% for r in rules %}
+  {% set m = current[r.id] %}
+  <tr>
+    <td><span class="badge {{ 'disabled' if not r.enabled else r.state }}">{{ 'disabled' if not r.enabled else r.state }}</span></td>
+    <td>{{ r.name }} <span class="muted">#{{ r.id }}</span></td>
+    <td class="muted">{{ r.environment or 'all envs' }} · {{ r.task_name or 'all tasks' }}</td>
+    <td>failure rate ≥ {{ (r.threshold * 100)|round(1) }}% over {{ r.window_minutes }}m, min {{ r.min_runs }} runs, cooldown {{ r.cooldown_minutes }}m</td>
+    <td class="num" {% if m.failure_rate is not none and m.failure_rate >= r.threshold %}style="color:var(--bad)"{% endif %}>{{ m.failure_rate|pct }} <span class="muted">({{ m.failed }}/{{ m.finished }})</span></td>
+    <td class="muted mono">{{ r.webhook_format }} → {{ r.webhook_url[:40] }}{% if r.webhook_url|length > 40 %}…{% endif %}</td>
+    <td class="muted">{{ ago(r.last_triggered_at) }}</td>
+    <td class="muted">{{ ago(r.last_resolved_at) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">No alert rules. Create one with <span class="mono">queueloom alert create {{ project.name }} --webhook-url ... --threshold 0.1</span> or <span class="mono">POST /v1/alerts</span>.</div>
+{% endif %}
+
+<h2>Recent alert events</h2>
+{% if events %}
+<table>
+  <thead><tr><th>When</th><th>Kind</th><th>Rule</th><th class="num">Failure rate</th><th>Window</th><th>Delivery</th></tr></thead>
+  <tbody>
+  {% for e in events %}
+  <tr>
+    <td class="muted" title="{{ e.created_at|ts }}">{{ ago(e.created_at) }}</td>
+    <td><span class="badge {{ e.kind }}">{{ e.kind }}</span></td>
+    <td>{{ rule_names.get(e.rule_id, '#' ~ e.rule_id) }}</td>
+    <td class="num">{{ e.failure_rate|pct }} <span class="muted">({{ e.failed }}/{{ e.finished }})</span></td>
+    <td class="muted">{{ e.window_since|ts }} → {{ e.window_until|ts }}</td>
+    <td>{% if e.delivered %}<span style="color:var(--ok)">delivered</span>{% else %}<span style="color:var(--bad)">failed</span>{% endif %} <span class="muted">{{ e.delivery_status or '' }}</span></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No alert events yet.</p>
+{% endif %}
+{% endblock %}

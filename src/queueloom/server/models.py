@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -78,6 +79,7 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(UTC))
 
     runs: Mapped[list[TaskRun]] = relationship(back_populates="project")
+    alert_rules: Mapped[list[AlertRule]] = relationship(back_populates="project")
 
 
 class TaskEventRow(Base):
@@ -144,3 +146,62 @@ class TaskRun(Base):
     @property
     def is_terminal(self) -> bool:
         return self.state in TERMINAL_STATES
+
+
+class AlertState(StrEnum):
+    OK = "ok"
+    FIRING = "firing"
+
+
+class AlertRule(Base):
+    """Fire a webhook when the failure rate over a sliding window crosses a threshold."""
+
+    __tablename__ = "alert_rules"
+    __table_args__ = (Index("ix_alert_rules_project_enabled", "project_id", "enabled"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    environment: Mapped[str | None] = mapped_column(String(64))
+    task_name: Mapped[str | None] = mapped_column(String(255))
+    window_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    threshold: Mapped[float] = mapped_column(Float, default=0.1)
+    min_runs: Mapped[int] = mapped_column(Integer, default=10)
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    webhook_url: Mapped[str] = mapped_column(String(2000))
+    webhook_format: Mapped[str] = mapped_column(String(16), default="json")
+    webhook_secret: Mapped[str | None] = mapped_column(String(200))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    state: Mapped[str] = mapped_column(String(16), default=AlertState.OK.value)
+    last_evaluated_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    last_resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(UTC))
+
+    project: Mapped[Project] = relationship(back_populates="alert_rules")
+    events: Mapped[list[AlertEvent]] = relationship(
+        back_populates="rule", cascade="all, delete-orphan", order_by="AlertEvent.id.desc()"
+    )
+
+
+class AlertEvent(Base):
+    """History of alert transitions and webhook deliveries."""
+
+    __tablename__ = "alert_events"
+    __table_args__ = (Index("ix_alert_events_project_created", "project_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rule_id: Mapped[int] = mapped_column(ForeignKey("alert_rules.id", ondelete="CASCADE"))
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))  # fired | resolved | test
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(UTC))
+    failure_rate: Mapped[float | None] = mapped_column(Float)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    finished: Mapped[int] = mapped_column(Integer, default=0)
+    window_since: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    window_until: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    delivered: Mapped[bool] = mapped_column(Boolean, default=False)
+    delivery_status: Mapped[str | None] = mapped_column(String(200))
+
+    rule: Mapped[AlertRule] = relationship(back_populates="events")
