@@ -7,8 +7,8 @@ app and get a timeline of every task: queued → started → succeeded / failed 
 queue latency, duration, retry counts and full exception details, filterable by project,
 environment, task and time range.
 
-> Status: pre-alpha, under active development. Initial focus is **Celery + Redis/RabbitMQ**.
-> RQ, Dramatiq, FastAPI background tasks and Temporal adapters are planned.
+> Status: pre-alpha, under active development. Initial focus is **Celery + Redis/RabbitMQ**,
+> with a **Dramatiq** adapter included. RQ, FastAPI background tasks and Temporal are planned.
 
 ## Why
 
@@ -45,6 +45,21 @@ Or configure through the environment and call `instrument(app)` with no argument
 | `QUEUELOOM_ENVIRONMENT`  | Environment label (`prod`, `staging`, ...) |
 
 Open `http://127.0.0.1:8800/projects/my-app`.
+
+Using Dramatiq instead? Same idea, as a broker middleware:
+
+```python
+import dramatiq
+from dramatiq.brokers.redis import RedisBroker
+from queueloom.sdk.dramatiq import instrument
+
+broker = RedisBroker()
+instrument(broker, endpoint="http://127.0.0.1:8800", api_key="ql_...", environment="prod")
+dramatiq.set_broker(broker)
+```
+
+Install with `pip install "queueloom[dramatiq]"`. Retries, delayed messages and skipped messages
+map onto the same event model, so the dashboard looks identical for both frameworks.
 
 ### Try it without any infrastructure
 
@@ -259,7 +274,8 @@ memory broker, so SDK behaviour is verified end to end without Docker.
 - [x] Dashboard authentication (single password; multi-user projects later)
 - [ ] Retention / cleanup job for old events
 - [x] AI incident summaries on top of a deterministic diagnosis
-- [ ] Adapters: RQ, Dramatiq, FastAPI `BackgroundTasks`, Temporal
+- [x] Dramatiq adapter
+- [ ] Adapters: RQ, FastAPI `BackgroundTasks`, Temporal
 - [ ] Hosted version (QueueLoom Cloud)
 
 ## License
