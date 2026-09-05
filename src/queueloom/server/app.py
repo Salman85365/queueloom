@@ -20,6 +20,7 @@ from queueloom.server.config import Settings
 from queueloom.server.dashboard import router as dashboard_router
 from queueloom.server.db import make_engine, make_session_factory
 from queueloom.server.migrate import upgrade
+from queueloom.server.retention import cleanup
 
 log = logging.getLogger("queueloom.server")
 
@@ -42,18 +43,31 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
             except Exception:
                 log.exception("alert evaluation failed")
 
+    async def retention_loop(app: FastAPI) -> None:
+        interval = settings.retention_interval_seconds
+        while True:
+            try:
+                await asyncio.to_thread(
+                    cleanup, app.state.session_factory, retention_days=settings.retention_days
+                )
+            except Exception:
+                log.exception("retention cleanup failed")
+            await asyncio.sleep(interval)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if settings.auto_migrate:
             upgrade(engine)
         log.info("QueueLoom %s ready (db=%s)", __version__, engine.url.render_as_string())
-        task = None
+        tasks: list[asyncio.Task[None]] = []
         if settings.alert_eval_interval_seconds > 0:
-            task = asyncio.create_task(alert_loop(app), name="queueloom-alerts")
+            tasks.append(asyncio.create_task(alert_loop(app), name="queueloom-alerts"))
+        if settings.retention_interval_seconds > 0 and settings.retention_days > 0:
+            tasks.append(asyncio.create_task(retention_loop(app), name="queueloom-retention"))
         try:
             yield
         finally:
-            if task is not None:
+            for task in tasks:
                 task.cancel()
             engine.dispose()
 

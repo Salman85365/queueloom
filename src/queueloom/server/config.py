@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # (use `queueloom alert evaluate` from cron or POST /v1/alerts/evaluate instead).
     alert_eval_interval_seconds: int = 30
     webhook_timeout_seconds: float = 10.0
+    # Delete runs/events older than this many days. 0 keeps everything forever.
+    retention_days: int = 30
+    # How often the server runs the retention job. 0 disables (use `queueloom cleanup`).
+    retention_interval_seconds: int = 6 * 3600
     # Public URL of this server, used for links inside webhook payloads.
     public_base_url: str | None = None
     # Dashboard login. Unset = open dashboard (fine on localhost, not on the internet).

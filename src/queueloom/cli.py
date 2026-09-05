@@ -69,6 +69,38 @@ def migrate_command(
     typer.echo(f"Database at revision {current_revision(engine)} ({settings.database_url})")
 
 
+@app.command()
+def cleanup(
+    days: Annotated[
+        int | None,
+        typer.Option(help="Retention window in days (default: QUEUELOOM_RETENTION_DAYS)."),
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Only report the cutoff.")] = False,
+) -> None:
+    """Delete runs, events and alert history older than the retention window."""
+    from queueloom.server.config import Settings
+    from queueloom.server.db import make_engine, make_session_factory
+    from queueloom.server.retention import cleanup as run_cleanup
+
+    settings = Settings()
+    retention_days = days if days is not None else settings.retention_days
+    if retention_days <= 0:
+        typer.echo("Retention is disabled (QUEUELOOM_RETENTION_DAYS=0); nothing to do.")
+        return
+    if dry_run:
+        from datetime import UTC, datetime, timedelta
+
+        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+        typer.echo(f"Would delete data with last activity before {cutoff.isoformat()}")
+        return
+    engine = make_engine(settings.database_url)
+    result = run_cleanup(make_session_factory(engine), retention_days=retention_days)
+    typer.echo(
+        f"Deleted {result.task_events} events, {result.task_runs} runs, "
+        f"{result.alert_events} alert events older than {result.cutoff.isoformat()}"
+    )
+
+
 @app.command("init-db", hidden=True)
 def init_db_command() -> None:
     """Alias for `migrate` kept for early adopters."""

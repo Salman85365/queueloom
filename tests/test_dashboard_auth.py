@@ -23,6 +23,7 @@ def locked_client(engine: Engine) -> Iterator[TestClient]:
         dashboard_password="hunter2",
         secret_key="test-secret",
         alert_eval_interval_seconds=0,
+        retention_interval_seconds=0,
     )
     with TestClient(create_app(settings, engine=engine)) as c:
         yield c
