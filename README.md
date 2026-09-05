@@ -73,6 +73,9 @@ PostgreSQL + Redis + server + an instrumented Celery worker + a producer.
 - **Task list** with filters for environment, task name, queue, state and time range.
 - **Task detail**: full event timeline, worker, latency, duration, retries/attempts, exception
   type, message and traceback, parent/root links for chains and groups.
+- **Alerts**: failure-rate rules over a sliding window (per environment and/or task) that
+  fire a webhook (generic JSON or Slack) when crossed and again when resolved, with cooldown,
+  optional HMAC signing, and a delivery log.
 - **JSON API** for everything the dashboard shows (`/docs` for OpenAPI).
 
 ## How it works
@@ -110,6 +113,62 @@ else bumps it and the server rejects versions it does not understand. See
 Task arguments are **not** captured by default. `instrument(..., capture_args=True)` records a
 truncated `repr()` of args/kwargs.
 
+## Alerts
+
+```bash
+queueloom alert create my-app --webhook-url https://hooks.slack.com/services/... \
+    --format slack --threshold 0.1 --window 15 --min-runs 20 --task-name app.send_email
+```
+
+A rule fires when `failed / (failed + succeeded)` over the last `window` minutes is at least
+`threshold`, provided at least `min-runs` runs finished in that window. It fires once, stays
+`firing` quietly, sends a `resolved` webhook when the rate drops below the threshold, and will
+not fire again within `cooldown` minutes of resolving. Rules can also be managed on the
+dashboard's Alerts page or via `POST /v1/alerts`.
+
+The server evaluates rules every `QUEUELOOM_ALERT_EVAL_INTERVAL_SECONDS` (default 30). Set it to
+`0` and run `queueloom alert evaluate` from cron, or call `POST /v1/alerts/evaluate`, if you
+prefer to control scheduling yourself.
+
+Webhook payload (`json` format):
+
+```json
+{
+  "type": "queueloom.alert.fired",
+  "text": "🔴 QueueLoom alert firing: emails — failure rate 25.0% (5/20 runs) ...",
+  "project": "my-app",
+  "rule": {"id": 1, "name": "emails", "environment": null, "task_name": "app.send_email",
+           "window_minutes": 15, "threshold": 0.1, "min_runs": 20},
+  "failure_rate": 0.25, "failed": 5, "finished": 20,
+  "window": {"since": "...", "until": "..."},
+  "occurred_at": "...", "link": "https://queueloom.example/projects/my-app/alerts"
+}
+```
+
+With `--secret`, each request carries `X-QueueLoom-Signature: sha256=<hex HMAC of the body>`.
+`slack` format sends only `{"text": ...}`, which Slack, Discord-compatible and most chat
+webhooks accept.
+
+## Database migrations
+
+The server runs pending Alembic migrations on startup (`QUEUELOOM_AUTO_MIGRATE=true`). To
+manage schema changes yourself, disable that and run:
+
+```bash
+queueloom migrate
+```
+
+Databases created by the earliest pre-alpha builds (before migrations existed) are detected and
+stamped automatically.
+
+## Dashboard access
+
+Set `QUEUELOOM_DASHBOARD_PASSWORD` to require a login for the dashboard; sessions are signed
+with `QUEUELOOM_SECRET_KEY` (set one, otherwise sessions reset on restart). With no password
+configured the dashboard is open and shows a warning banner, which is fine on `localhost` and
+not fine on the internet. Set `QUEUELOOM_HTTPS_ONLY=true` behind TLS. The JSON API always
+authenticates with per-project API keys and is unaffected by the dashboard password.
+
 ## Server configuration
 
 All settings are environment variables prefixed with `QUEUELOOM_`:
@@ -118,7 +177,13 @@ All settings are environment variables prefixed with `QUEUELOOM_`:
 |---------------------------------------|-----------------------------|
 | `QUEUELOOM_DATABASE_URL`              | `sqlite:///./queueloom.db`  |
 | `QUEUELOOM_HOST` / `QUEUELOOM_PORT`   | `127.0.0.1` / `8800`        |
-| `QUEUELOOM_AUTO_CREATE_SCHEMA`        | `true`                      |
+| `QUEUELOOM_AUTO_MIGRATE`              | `true`                      |
+| `QUEUELOOM_DASHBOARD_PASSWORD`        | unset (open dashboard)      |
+| `QUEUELOOM_SECRET_KEY`                | unset (random per process)  |
+| `QUEUELOOM_HTTPS_ONLY`                | `false`                     |
+| `QUEUELOOM_PUBLIC_BASE_URL`           | unset (no links in webhooks)|
+| `QUEUELOOM_ALERT_EVAL_INTERVAL_SECONDS` | `30`                      |
+| `QUEUELOOM_WEBHOOK_TIMEOUT_SECONDS`   | `10`                        |
 | `QUEUELOOM_DASHBOARD_REFRESH_SECONDS` | `15`                        |
 | `QUEUELOOM_STATS_SAMPLE_LIMIT`        | `50000`                     |
 
@@ -133,10 +198,14 @@ PostgreSQL example: `postgresql+psycopg://user:pass@host:5432/queueloom`.
 | GET    | `/v1/tasks/{id}`    | Run plus its event timeline                      |
 | GET    | `/v1/stats`         | Aggregates for a window, overall and per task    |
 | GET    | `/v1/projects/me`   | Project for the supplied key                     |
+| POST/GET | `/v1/alerts`      | Create / list alert rules                        |
+| GET/DELETE | `/v1/alerts/{id}` | Rule detail with current measurement / delete   |
+| GET    | `/v1/alerts/{id}/events` | Fired / resolved / test history              |
+| POST   | `/v1/alerts/{id}/test` | Send a test payload to the webhook            |
+| POST   | `/v1/alerts/evaluate` | Evaluate this project's rules now              |
 | GET    | `/v1/health`        |                                                  |
 
-Authenticate with `Authorization: Bearer <api key>`. The dashboard itself has no auth in this
-release; run it on a trusted network or behind a reverse proxy with auth.
+Authenticate with `Authorization: Bearer <api key>`.
 
 ## Development
 
@@ -153,9 +222,10 @@ memory broker, so SDK behaviour is verified end to end without Docker.
 
 ## Roadmap
 
-- [ ] Failure-rate alerts with webhook delivery
-- [ ] Alembic migrations and retention/cleanup job
-- [ ] Dashboard authentication and multi-user projects
+- [x] Failure-rate alerts with webhook delivery
+- [x] Alembic migrations
+- [x] Dashboard authentication (single password; multi-user projects later)
+- [ ] Retention / cleanup job for old events
 - [ ] AI incident summaries on top of the stored timelines
 - [ ] Adapters: RQ, Dramatiq, FastAPI `BackgroundTasks`, Temporal
 - [ ] Hosted version (QueueLoom Cloud)

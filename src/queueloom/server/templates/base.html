@@ -44,6 +44,13 @@ pre{background:#0b0d13;border:1px solid var(--line);border-radius:8px;padding:.7
 .bar i{display:block;height:100%}.bar .succeeded{background:var(--ok)}.bar .failed{background:var(--bad)}
 .bar .retrying{background:var(--warn)}.bar .started{background:var(--info)}.bar .queued{background:#9aa3b8}.bar .revoked{background:#c48bff}
 footer{padding:1rem 1.25rem;color:var(--dim);font-size:.75rem}
+button.ghost{background:transparent;color:var(--muted);border-color:var(--line);font-weight:500}button.ghost:hover{color:var(--fg)}
+button.danger{background:transparent;color:var(--bad);border-color:var(--line);font-weight:500;padding:.2rem .5rem;font-size:.75rem}
+.notice{background:#2a2410;color:var(--warn);border-bottom:1px solid #4a3d14;padding:.4rem 1.25rem;font-size:.8rem}
+.error{background:#2a1414;color:var(--bad);border:1px solid #4a1d1d;border-radius:6px;padding:.5rem .75rem;margin-bottom:1rem}
+form.inline{display:inline}
+.grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5rem .75rem;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem}
+.grid-form label{display:flex;flex-direction:column;font-size:.75rem;color:var(--muted);gap:.2rem}.grid-form .wide{grid-column:span 2}
 </style>
 </head>
 <body>
@@ -60,7 +67,13 @@ footer{padding:1rem 1.25rem;color:var(--dim);font-size:.75rem}
     {% for p in projects %}<option value="{{ p.name }}" {% if p.id == project.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
   </select>
   {% endif %}
+  {% if auth_enabled %}
+  <form method="post" action="/logout" style="margin-left:{% if project %}0{% else %}auto{% endif %}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button type="submit" class="ghost">Sign out</button></form>
+  {% endif %}
 </header>
+{% if auth_enabled is defined and not auth_enabled %}
+<div class="notice">Dashboard is open to anyone who can reach it. Set <span class="mono">QUEUELOOM_DASHBOARD_PASSWORD</span> before exposing it.</div>
+{% endif %}
 <main>{% block content %}{% endblock %}</main>
 <footer>QueueLoom · times in UTC{% if project %} · auto-refresh every {{ refresh_seconds }}s{% endif %}</footer>
 </body>

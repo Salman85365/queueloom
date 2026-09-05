@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from sqlalchemy import Engine
+from starlette.middleware.sessions import SessionMiddleware
 
 from queueloom import __version__
 from queueloom.server.alerts import run_evaluation
 from queueloom.server.api import router as api_router
+from queueloom.server.auth import LoginRequired, login_redirect
+from queueloom.server.auth import router as auth_router
 from queueloom.server.config import Settings
 from queueloom.server.dashboard import router as dashboard_router
 from queueloom.server.db import make_engine, make_session_factory
@@ -61,6 +66,26 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
+
+    secret_key = settings.secret_key
+    if not secret_key:
+        secret_key = secrets.token_urlsafe(48)
+        if settings.dashboard_password:
+            log.warning("QUEUELOOM_SECRET_KEY is not set; dashboard sessions reset on restart")
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=secret_key,
+        session_cookie="queueloom_session",
+        max_age=settings.session_max_age_seconds,
+        same_site="lax",
+        https_only=settings.https_only,
+    )
+
+    @app.exception_handler(LoginRequired)
+    async def _login_required(request: Request, exc: LoginRequired) -> Response:
+        return login_redirect(exc.next_path)
+
     app.include_router(api_router)
+    app.include_router(auth_router)
     app.include_router(dashboard_router)
     return app

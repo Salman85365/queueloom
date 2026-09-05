@@ -3,9 +3,24 @@
 {% block title %}{{ project.name }} · alerts{% endblock %}
 {% block content %}
 <h1>Alerts</h1>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form class="grid-form" method="post" action="/projects/{{ project.name }}/alerts">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <label>Rule name<input name="rule_name" placeholder="optional"></label>
+  <label class="wide">Webhook URL<input name="webhook_url" required placeholder="https://hooks.slack.com/services/..."></label>
+  <label>Format<select name="webhook_format">{% for f in webhook_formats %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select></label>
+  <label>Threshold %<input name="threshold_pct" type="number" min="0" max="100" step="0.1" value="10"></label>
+  <label>Window (min)<input name="window_minutes" type="number" min="1" value="15"></label>
+  <label>Min runs<input name="min_runs" type="number" min="1" value="10"></label>
+  <label>Cooldown (min)<input name="cooldown_minutes" type="number" min="0" value="30"></label>
+  <label>Environment<select name="environment"><option value="">all</option>{% for e in environments %}<option value="{{ e }}">{{ e }}</option>{% endfor %}</select></label>
+  <label>Task<select name="task_name"><option value="">all</option>{% for t in task_names %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></label>
+  <label>Signing secret<input name="webhook_secret" placeholder="optional"></label>
+  <button type="submit">Add rule</button>
+</form>
 {% if rules %}
 <table>
-  <thead><tr><th>State</th><th>Rule</th><th>Scope</th><th>Condition</th><th class="num">Current</th><th>Webhook</th><th>Last fired</th><th>Last resolved</th></tr></thead>
+  <thead><tr><th>State</th><th>Rule</th><th>Scope</th><th>Condition</th><th class="num">Current</th><th>Webhook</th><th>Last fired</th><th>Last resolved</th><th></th></tr></thead>
   <tbody>
   {% for r in rules %}
   {% set m = current[r.id] %}
@@ -18,12 +33,16 @@
     <td class="muted mono">{{ r.webhook_format }} → {{ r.webhook_url[:40] }}{% if r.webhook_url|length > 40 %}…{% endif %}</td>
     <td class="muted">{{ ago(r.last_triggered_at) }}</td>
     <td class="muted">{{ ago(r.last_resolved_at) }}</td>
+    <td style="white-space:nowrap">
+      <form class="inline" method="post" action="/projects/{{ project.name }}/alerts/{{ r.id }}/toggle"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger" type="submit">{{ 'disable' if r.enabled else 'enable' }}</button></form>
+      <form class="inline" method="post" action="/projects/{{ project.name }}/alerts/{{ r.id }}/delete" onsubmit="return confirm('Delete rule {{ r.name }}?')"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger" type="submit">delete</button></form>
+    </td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
 {% else %}
-<div class="empty">No alert rules. Create one with <span class="mono">queueloom alert create {{ project.name }} --webhook-url ... --threshold 0.1</span> or <span class="mono">POST /v1/alerts</span>.</div>
+<div class="empty">No alert rules yet. Add one above, or use <span class="mono">queueloom alert create {{ project.name }} --webhook-url ...</span> / <span class="mono">POST /v1/alerts</span>.</div>
 {% endif %}
 
 <h2>Recent alert events</h2>

@@ -24,3 +24,10 @@ class Settings(BaseSettings):
     webhook_timeout_seconds: float = 10.0
     # Public URL of this server, used for links inside webhook payloads.
     public_base_url: str | None = None
+    # Dashboard login. Unset = open dashboard (fine on localhost, not on the internet).
+    dashboard_password: str | None = None
+    # Signs the session cookie. Unset = random per process (sessions reset on restart).
+    secret_key: str | None = None
+    session_max_age_seconds: int = 7 * 24 * 3600
+    # Set when serving over HTTPS so the session cookie is marked Secure.
+    https_only: bool = False

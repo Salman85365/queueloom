@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
-from queueloom.server.alerts import measure
+from queueloom.server.alerts import WEBHOOK_FORMATS, measure
+from queueloom.server.auth import CsrfProtected, DashboardUser, auth_enabled, csrf_token
 from queueloom.server.deps import SessionDep
 from queueloom.server.models import AlertEvent, AlertRule, RunState
 from queueloom.server.projects import get_project_by_name, list_projects
@@ -26,7 +27,7 @@ from queueloom.server.queries import (
 )
 from queueloom.server.timeutil import DEFAULT_RANGE, resolve_window
 
-router = APIRouter(include_in_schema=False)
+router = APIRouter(include_in_schema=False, dependencies=[DashboardUser])
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 RANGE_CHOICES = ["15m", "1h", "6h", "24h", "7d", "30d"]
@@ -116,6 +117,8 @@ def _common_context(request: Request, session: SessionDep, project: Any) -> dict
         "refresh_seconds": request.app.state.settings.dashboard_refresh_seconds,
         "now": now,
         "ago": lambda dt: fmt_ago(dt, now),
+        "auth_enabled": auth_enabled(request),
+        "csrf_token": csrf_token(request),
     }
 
 
@@ -123,7 +126,14 @@ def _common_context(request: Request, session: SessionDep, project: Any) -> dict
 def index(request: Request, session: SessionDep) -> Any:
     projects = list_projects(session)
     return templates.TemplateResponse(
-        request, "index.html", {"projects": projects, "project": None}
+        request,
+        "index.html",
+        {
+            "projects": projects,
+            "project": None,
+            "auth_enabled": auth_enabled(request),
+            "csrf_token": csrf_token(request),
+        },
     )
 
 
@@ -207,5 +217,85 @@ def alerts_page(name: str, request: Request, session: SessionDep) -> Any:
     )
     rule_names = {rule.id: rule.name for rule in rules}
     ctx = _common_context(request, session, project)
-    ctx.update({"rules": rules, "current": current, "events": events, "rule_names": rule_names})
+    ctx.update(
+        {
+            "rules": rules,
+            "current": current,
+            "events": events,
+            "rule_names": rule_names,
+            "webhook_formats": WEBHOOK_FORMATS,
+            "error": request.query_params.get("error"),
+        }
+    )
     return templates.TemplateResponse(request, "alerts.html", ctx)
+
+
+def _alerts_redirect(name: str, error: str | None = None) -> RedirectResponse:
+    url = f"/projects/{name}/alerts"
+    if error:
+        from urllib.parse import urlencode
+
+        url += "?" + urlencode({"error": error})
+    return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/projects/{name}/alerts", dependencies=[CsrfProtected])
+def alerts_create(
+    name: str,
+    session: SessionDep,
+    rule_name: Annotated[str, Form()] = "",
+    webhook_url: Annotated[str, Form()] = "",
+    webhook_format: Annotated[str, Form()] = "json",
+    webhook_secret: Annotated[str, Form()] = "",
+    threshold_pct: Annotated[float, Form()] = 10.0,
+    window_minutes: Annotated[int, Form()] = 15,
+    min_runs: Annotated[int, Form()] = 10,
+    cooldown_minutes: Annotated[int, Form()] = 30,
+    environment: Annotated[str, Form()] = "",
+    task_name: Annotated[str, Form()] = "",
+) -> Any:
+    from pydantic import ValidationError
+
+    from queueloom.server.api import AlertRuleIn
+
+    project = _project_or_404(session, name)
+    try:
+        body = AlertRuleIn(
+            name=rule_name.strip() or f"failure-rate>{threshold_pct:g}% {task_name or 'all'}",
+            environment=environment.strip() or None,
+            task_name=task_name.strip() or None,
+            window_minutes=window_minutes,
+            threshold=threshold_pct / 100.0,
+            min_runs=min_runs,
+            cooldown_minutes=cooldown_minutes,
+            webhook_url=webhook_url.strip(),
+            webhook_format=webhook_format,
+            webhook_secret=webhook_secret.strip() or None,
+        )
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        return _alerts_redirect(name, f"{'.'.join(str(p) for p in first['loc'])}: {first['msg']}")
+    session.add(AlertRule(project_id=project.id, **body.model_dump()))
+    return _alerts_redirect(name)
+
+
+@router.post("/projects/{name}/alerts/{rule_id}/delete", dependencies=[CsrfProtected])
+def alerts_delete(name: str, rule_id: int, session: SessionDep) -> Any:
+    project = _project_or_404(session, name)
+    rule = session.scalar(
+        select(AlertRule).where(AlertRule.id == rule_id, AlertRule.project_id == project.id)
+    )
+    if rule is not None:
+        session.delete(rule)
+    return _alerts_redirect(name)
+
+
+@router.post("/projects/{name}/alerts/{rule_id}/toggle", dependencies=[CsrfProtected])
+def alerts_toggle(name: str, rule_id: int, session: SessionDep) -> Any:
+    project = _project_or_404(session, name)
+    rule = session.scalar(
+        select(AlertRule).where(AlertRule.id == rule_id, AlertRule.project_id == project.id)
+    )
+    if rule is not None:
+        rule.enabled = not rule.enabled
+    return _alerts_redirect(name)
