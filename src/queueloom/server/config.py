@@ -31,3 +31,12 @@ class Settings(BaseSettings):
     session_max_age_seconds: int = 7 * 24 * 3600
     # Set when serving over HTTPS so the session cookie is marked Secure.
     https_only: bool = False
+    # AI summaries: "auto" uses Anthropic when an API key is present, else the template
+    # provider (deterministic report only). "anthropic" | "template" force a choice.
+    ai_provider: str = "auto"
+    ai_model: str = "claude-opus-5"
+    ai_max_tokens: int = 2000
+    ai_effort: str = "medium"
+    # Server-side refusal fallback (re-runs on a fallback model if the primary declines).
+    ai_fallbacks: bool = True
+    anthropic_api_key: str | None = None

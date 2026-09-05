@@ -76,6 +76,10 @@ PostgreSQL + Redis + server + an instrumented Celery worker + a producer.
 - **Alerts**: failure-rate rules over a sliding window (per environment and/or task) that
   fire a webhook (generic JSON or Slack) when crossed and again when resolved, with cooldown,
   optional HMAC signing, and a delivery log.
+- **Diagnose**: a deterministic incident report for any window: which tasks regressed
+  against the previous window (failure rate, p95 duration, queue latency, retry storms),
+  failures clustered by exception with variable parts normalised, stuck tasks. Optionally
+  explained by Claude, which only ever sees that report, never raw data.
 - **JSON API** for everything the dashboard shows (`/docs` for OpenAPI).
 
 ## How it works
@@ -149,6 +153,32 @@ With `--secret`, each request carries `X-QueueLoom-Signature: sha256=<hex HMAC o
 `slack` format sends only `{"text": ...}`, which Slack, Discord-compatible and most chat
 webhooks accept.
 
+## AI incident summaries
+
+The Diagnose page (and `GET /v1/diagnosis`) always works without any model. To have the report
+explained, ranked by likely cause, with next steps:
+
+```bash
+pip install "queueloom[ai]"
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+then press *Generate summary* on the Diagnose page or call `POST /v1/diagnosis/summary` with
+an optional `{"question": "..."}`. The model receives only the deterministic report, so it
+cannot invent telemetry; anything it could not determine is listed under "Not enough data for".
+
+| Variable                      | Default         | Notes                                              |
+|-------------------------------|-----------------|----------------------------------------------------|
+| `QUEUELOOM_AI_PROVIDER`       | `auto`          | `auto` = Anthropic if a key is set, else `template` |
+| `QUEUELOOM_AI_MODEL`          | `claude-opus-5` |                                                    |
+| `QUEUELOOM_AI_EFFORT`         | `medium`        | `low` … `max`                                      |
+| `QUEUELOOM_AI_MAX_TOKENS`     | `2000`          |                                                    |
+| `QUEUELOOM_AI_FALLBACKS`      | `true`          | Server-side fallback if the primary model declines |
+| `QUEUELOOM_ANTHROPIC_API_KEY` | unset           | Alternative to `ANTHROPIC_API_KEY`                 |
+
+Providers implement a one-method interface (`queueloom.ai.SummaryProvider`), so another vendor
+or a local model is a small class away.
+
 ## Database migrations
 
 The server runs pending Alembic migrations on startup (`QUEUELOOM_AUTO_MIGRATE=true`). To
@@ -203,6 +233,8 @@ PostgreSQL example: `postgresql+psycopg://user:pass@host:5432/queueloom`.
 | GET    | `/v1/alerts/{id}/events` | Fired / resolved / test history              |
 | POST   | `/v1/alerts/{id}/test` | Send a test payload to the webhook            |
 | POST   | `/v1/alerts/evaluate` | Evaluate this project's rules now              |
+| GET    | `/v1/diagnosis`     | Deterministic diagnosis + text report for a window |
+| POST   | `/v1/diagnosis/summary` | Diagnosis explained by the AI provider        |
 | GET    | `/v1/health`        |                                                  |
 
 Authenticate with `Authorization: Bearer <api key>`.
@@ -226,7 +258,7 @@ memory broker, so SDK behaviour is verified end to end without Docker.
 - [x] Alembic migrations
 - [x] Dashboard authentication (single password; multi-user projects later)
 - [ ] Retention / cleanup job for old events
-- [ ] AI incident summaries on top of the stored timelines
+- [x] AI incident summaries on top of a deterministic diagnosis
 - [ ] Adapters: RQ, Dramatiq, FastAPI `BackgroundTasks`, Temporal
 - [ ] Hosted version (QueueLoom Cloud)
 

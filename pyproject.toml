@@ -44,9 +44,10 @@ server = [
   "pydantic-settings>=2.2",
   "typer>=0.12",
 ]
-all = ["queueloom[celery,server]"]
+ai = ["anthropic>=1.0"]
+all = ["queueloom[celery,server,ai]"]
 dev = [
-  "queueloom[celery,server]",
+  "queueloom[celery,server,ai]",
   "pytest>=8.0",
   "pytest-cov>=5.0",
   "ruff>=0.5",

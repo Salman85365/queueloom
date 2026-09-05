@@ -128,6 +128,8 @@ def test_dashboard_pages_render(client: TestClient, project: ProjectInfo) -> Non
     )
     overview = client.get(f"/projects/{project.name}", params={"range": "30d"})
     assert overview.status_code == 200
+    assert overview.text.rstrip().endswith("</html>")  # template block markers must not leak
+    assert 'http-equiv="refresh"' not in overview.text  # refresh disabled in tests (0s)
     tasks = client.get(
         f"/projects/{project.name}/tasks", params={"range": "30d", "state": "failed"}
     )

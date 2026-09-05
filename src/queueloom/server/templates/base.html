@@ -51,6 +51,10 @@ button.danger{background:transparent;color:var(--bad);border-color:var(--line);f
 form.inline{display:inline}
 .grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5rem .75rem;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem}
 .grid-form label{display:flex;flex-direction:column;font-size:.75rem;color:var(--muted);gap:.2rem}.grid-form .wide{grid-column:span 2}
+.headline{font-size:1.05rem;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem}
+.summary{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:1rem 1.25rem;white-space:pre-wrap;line-height:1.55}
+.flag{display:inline-block;background:#2a2410;color:var(--warn);border-radius:4px;padding:.05rem .4rem;font-size:.7rem;margin-right:.25rem}
+details summary{cursor:pointer;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -61,6 +65,7 @@ form.inline{display:inline}
     <a href="/projects/{{ project.name }}" class="{% if request.url.path == '/projects/' ~ project.name %}active{% endif %}">Overview</a>
     <a href="/projects/{{ project.name }}/tasks" class="{% if '/tasks' in request.url.path %}active{% endif %}">Tasks</a>
     <a href="/projects/{{ project.name }}/alerts" class="{% if '/alerts' in request.url.path %}active{% endif %}">Alerts</a>
+    <a href="/projects/{{ project.name }}/diagnose" class="{% if '/diagnose' in request.url.path %}active{% endif %}">Diagnose</a>
     <a href="/docs">API</a>
   </nav>
   <select onchange="location.href='/projects/'+this.value">
@@ -78,4 +83,5 @@ form.inline{display:inline}
 <footer>QueueLoom · times in UTC{% if project %} · auto-refresh every {{ refresh_seconds }}s{% endif %}</footer>
 </body>
 </html>
-{% block autorefresh %}{% endblock %}
+{#- child templates set this block to enable the meta refresh; wrapped so it never renders -#}
+{%- if false %}{% block autorefresh %}{% endblock %}{% endif -%}

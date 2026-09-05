@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 
 from queueloom import __version__
+from queueloom.ai import SummaryError, get_provider
 from queueloom.events import SCHEMA_VERSION, EventBatch
 from queueloom.server.alerts import (
     WEBHOOK_FORMATS,
@@ -20,6 +21,7 @@ from queueloom.server.alerts import (
     measure,
 )
 from queueloom.server.deps import ProjectDep, SessionDep
+from queueloom.server.diagnosis import diagnose, render_report
 from queueloom.server.ingest import ingest_events
 from queueloom.server.models import AlertEvent, AlertRule, TaskEventRow, TaskRun
 from queueloom.server.queries import (
@@ -339,3 +341,64 @@ def evaluate_alerts(request: Request, session: SessionDep, project: ProjectDep) 
                 rule, event, build_payload(rule, event, project, settings.public_base_url), client
             )
     return {"evaluated_at": now, "events": [alert_event_to_dict(e) for e in events]}
+
+
+# -- diagnosis ---------------------------------------------------------------------------------
+
+
+class SummaryRequest(BaseModel):
+    question: str | None = Field(default=None, max_length=1000)
+
+
+def _diagnosis(
+    request: Request,
+    session: SessionDep,
+    project: ProjectDep,
+    environment: str | None,
+    since: datetime | None,
+    until: datetime | None,
+    range_: str | None,
+) -> tuple[dict[str, Any], str]:
+    filters = _filters(environment, None, None, None, since, until, range_)
+    settings = request.app.state.settings
+    result = diagnose(session, project.id, filters, sample_limit=settings.stats_sample_limit)
+    return result.to_dict(), render_report(result, project.name)
+
+
+@router.get("/diagnosis")
+def diagnosis(
+    request: Request,
+    session: SessionDep,
+    project: ProjectDep,
+    environment: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    range: Annotated[str | None, Query(alias="range")] = None,
+) -> dict[str, Any]:
+    """Deterministic incident diagnosis for the window: clusters, regressions, stuck tasks."""
+    data, report = _diagnosis(request, session, project, environment, since, until, range)
+    data["report"] = report
+    return data
+
+
+@router.post("/diagnosis/summary")
+def diagnosis_summary(
+    request: Request,
+    session: SessionDep,
+    project: ProjectDep,
+    body: SummaryRequest | None = None,
+    environment: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    range: Annotated[str | None, Query(alias="range")] = None,
+) -> dict[str, Any]:
+    """Explain the diagnosis with the configured AI provider (or the report itself if none)."""
+    data, report = _diagnosis(request, session, project, environment, since, until, range)
+    provider = getattr(request.app.state, "summary_provider", None) or get_provider(
+        request.app.state.settings
+    )
+    try:
+        summary = provider.summarize(report, question=body.question if body else None)
+    except SummaryError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return {"summary": summary.to_dict(), "diagnosis": data, "report": report}

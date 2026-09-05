@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} · diagnose{% endblock %}
+{% block content %}
+<h1>Diagnose <span class="muted">· last {{ filters.range }}</span></h1>
+<form class="filters" method="get">
+  <label>Environment
+    <select name="environment"><option value="">all</option>
+      {% for e in environments %}<option value="{{ e }}" {% if filters.environment == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+    </select></label>
+  <label>Range
+    <select name="range">
+      {% for r in range_choices %}<option value="{{ r }}" {% if filters.range == r %}selected{% endif %}>last {{ r }}</option>{% endfor %}
+    </select></label>
+  <button type="submit">Apply</button>
+</form>
+
+<div class="headline">{{ diagnosis.headline }}</div>
+
+<h2>AI summary <span class="muted">· provider: {{ provider_name }}</span></h2>
+{% if summary_error %}<div class="error">{{ summary_error }}</div>{% endif %}
+{% if summary %}
+<div class="summary">{{ summary.text }}</div>
+<p class="muted">{{ summary.provider }}{% if summary.model %} · {{ summary.model }}{% endif %}{% if summary.output_tokens %} · {{ summary.input_tokens }} in / {{ summary.output_tokens }} out tokens{% endif %}</p>
+{% endif %}
+<form method="post" action="/projects/{{ project.name }}/diagnose?range={{ filters.range }}&environment={{ filters.environment|urlencode }}" class="filters">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <label style="flex:1;min-width:260px">Optional question for the model
+    <input name="question" value="{{ question }}" placeholder="e.g. Is this a code regression or an infrastructure problem?"></label>
+  <button type="submit">{% if provider_name == 'template' %}Show report{% else %}Generate summary{% endif %}</button>
+</form>
+{% if provider_name == 'template' %}
+<p class="muted">No AI provider configured. Set <span class="mono">ANTHROPIC_API_KEY</span> (and install <span class="mono">queueloom[ai]</span>) to get model-written summaries; the deterministic report below is always available.</p>
+{% endif %}
+
+<h2>Tasks that changed versus the previous {{ filters.range }}</h2>
+{% if diagnosis.task_findings %}
+<table>
+  <thead><tr><th>Task</th><th>Flags</th><th class="num">Failed / runs</th><th class="num">Failure rate</th><th class="num">Baseline</th><th class="num">p95 duration</th><th class="num">Baseline</th><th class="num">p95 latency</th><th class="num">Baseline</th></tr></thead>
+  <tbody>
+  {% for f in diagnosis.task_findings %}
+  <tr>
+    <td><a class="mono" href="/projects/{{ project.name }}/tasks?task_name={{ f.task_name|urlencode }}&range={{ filters.range }}&state=failed">{{ f.task_name }}</a></td>
+    <td>{% for flag in f.flags %}<span class="flag">{{ flag }}</span>{% endfor %}</td>
+    <td class="num">{{ f.failed }} / {{ f.total }}</td>
+    <td class="num" style="color:var(--bad)">{{ f.failure_rate|pct }}</td>
+    <td class="num muted">{{ f.baseline_failure_rate|pct }}</td>
+    <td class="num">{{ f.p95_duration_ms|ms }}</td>
+    <td class="num muted">{{ f.baseline_p95_duration_ms|ms }}</td>
+    <td class="num">{{ f.p95_queue_latency_ms|ms }}</td>
+    <td class="num muted">{{ f.baseline_p95_queue_latency_ms|ms }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No task regressed against the baseline window.</p>
+{% endif %}
+
+<h2>Error clusters</h2>
+{% if diagnosis.error_clusters %}
+<table>
+  <thead><tr><th class="num">Count</th><th>Task</th><th>Exception</th><th>Message pattern</th><th>Workers</th><th>Last seen</th><th>Examples</th></tr></thead>
+  <tbody>
+  {% for c in diagnosis.error_clusters %}
+  <tr>
+    <td class="num">{{ c.count }}</td>
+    <td class="mono">{{ c.task_name }}</td>
+    <td class="mono">{{ c.exception_type }}</td>
+    <td>{{ c.message_pattern }}</td>
+    <td class="muted">{{ c.workers|join(', ') }}</td>
+    <td class="muted">{{ ago(c.last_seen) }}</td>
+    <td>{% for tid in c.sample_task_ids %}<a class="mono" href="/projects/{{ project.name }}/tasks/{{ tid }}">{{ tid[:8] }}</a> {% endfor %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No failures in this window.</p>
+{% endif %}
+
+<h2>Report</h2>
+<details><summary>Show the deterministic report the model receives</summary><pre>{{ report }}</pre></details>
+{% endblock %}

@@ -11,9 +11,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
+from queueloom.ai import SummaryError, get_provider
 from queueloom.server.alerts import WEBHOOK_FORMATS, measure
 from queueloom.server.auth import CsrfProtected, DashboardUser, auth_enabled, csrf_token
 from queueloom.server.deps import SessionDep
+from queueloom.server.diagnosis import diagnose, render_report
 from queueloom.server.models import AlertEvent, AlertRule, RunState
 from queueloom.server.projects import get_project_by_name, list_projects
 from queueloom.server.queries import (
@@ -299,3 +301,56 @@ def alerts_toggle(name: str, rule_id: int, session: SessionDep) -> Any:
     if rule is not None:
         rule.enabled = not rule.enabled
     return _alerts_redirect(name)
+
+
+def _diagnose_context(request: Request, session: SessionDep, project: Any) -> dict[str, Any]:
+    filters, raw = _filters_from_query(request)
+    settings = request.app.state.settings
+    result = diagnose(
+        session,
+        project.id,
+        RunFilters(environment=filters.environment, since=filters.since, until=filters.until),
+        sample_limit=settings.stats_sample_limit,
+    )
+    provider = getattr(request.app.state, "summary_provider", None) or get_provider(settings)
+    ctx = _common_context(request, session, project)
+    ctx.update(
+        {
+            "diagnosis": result,
+            "report": render_report(result, project.name),
+            "filters": raw,
+            "provider_name": provider.name,
+            "summary": None,
+            "summary_error": None,
+            "question": "",
+        }
+    )
+    return ctx
+
+
+@router.get("/projects/{name}/diagnose", response_class=HTMLResponse)
+def diagnose_page(name: str, request: Request, session: SessionDep) -> Any:
+    project = _project_or_404(session, name)
+    return templates.TemplateResponse(
+        request, "diagnose.html", _diagnose_context(request, session, project)
+    )
+
+
+@router.post("/projects/{name}/diagnose", response_class=HTMLResponse, dependencies=[CsrfProtected])
+def diagnose_summary(
+    name: str,
+    request: Request,
+    session: SessionDep,
+    question: Annotated[str, Form()] = "",
+) -> Any:
+    project = _project_or_404(session, name)
+    ctx = _diagnose_context(request, session, project)
+    provider = getattr(request.app.state, "summary_provider", None) or get_provider(
+        request.app.state.settings
+    )
+    ctx["question"] = question
+    try:
+        ctx["summary"] = provider.summarize(ctx["report"], question=question.strip() or None)
+    except SummaryError as exc:
+        ctx["summary_error"] = str(exc)
+    return templates.TemplateResponse(request, "diagnose.html", ctx)
