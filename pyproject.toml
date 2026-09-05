@@ -36,6 +36,7 @@ server = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.29",
   "sqlalchemy>=2.0",
+  "alembic>=1.13",
   "psycopg[binary]>=3.1",
   "jinja2>=3.1",
   "pydantic-settings>=2.2",

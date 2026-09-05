@@ -40,7 +40,7 @@ def session_factory(engine: Engine) -> sessionmaker[Session]:
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(auto_create_schema=False, dashboard_refresh_seconds=0, database_url="sqlite://")
+    return Settings(auto_migrate=False, dashboard_refresh_seconds=0, database_url="sqlite://")
 
 
 @pytest.fixture

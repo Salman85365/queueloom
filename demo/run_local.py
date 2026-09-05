@@ -32,12 +32,8 @@ from demo.tasks import app as celery_app
 from demo.tasks import configure, enqueue_random
 from queueloom.server.app import create_app
 from queueloom.server.config import Settings
-from queueloom.server.db import (
-    init_db,
-    make_engine,
-    make_session_factory,
-    session_scope,
-)
+from queueloom.server.db import make_engine, make_session_factory, session_scope
+from queueloom.server.migrate import upgrade
 from queueloom.server.projects import create_project, get_project_by_name
 
 
@@ -57,7 +53,7 @@ def main() -> None:
         database_url=f"sqlite:///{db_path}", port=args.port, dashboard_refresh_seconds=5
     )
     engine = make_engine(settings.database_url)
-    init_db(engine)
+    upgrade(engine)
     with session_scope(make_session_factory(engine)) as session:
         existing = get_project_by_name(session, "demo")
         if existing is None:

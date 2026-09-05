@@ -54,15 +54,37 @@ def serve(
     )
 
 
-@app.command("init-db")
-def init_db_command() -> None:
-    """Create database tables (idempotent)."""
+@app.command("migrate")
+def migrate_command(
+    revision: Annotated[str, typer.Argument(help="Target revision (default: head).")] = "head",
+) -> None:
+    """Apply database migrations (idempotent)."""
     from queueloom.server.config import Settings
-    from queueloom.server.db import init_db, make_engine
+    from queueloom.server.db import make_engine
+    from queueloom.server.migrate import current_revision, upgrade
 
     settings = Settings()
-    init_db(make_engine(settings.database_url))
-    typer.echo(f"Schema ready at {settings.database_url}")
+    engine = make_engine(settings.database_url)
+    upgrade(engine, revision)
+    typer.echo(f"Database at revision {current_revision(engine)} ({settings.database_url})")
+
+
+@app.command("init-db", hidden=True)
+def init_db_command() -> None:
+    """Alias for `migrate` kept for early adopters."""
+    migrate_command("head")
+
+
+@app.command("makemigration", hidden=True)
+def makemigration_command(
+    message: Annotated[str, typer.Option("-m", "--message", help="Revision message.")],
+) -> None:
+    """Autogenerate a migration from model changes (development only)."""
+    from queueloom.server.config import Settings
+    from queueloom.server.db import make_engine
+    from queueloom.server.migrate import make_revision
+
+    make_revision(make_engine(Settings().database_url), message)
 
 
 @project_app.command("create")
@@ -77,12 +99,13 @@ def project_create(
 ) -> None:
     """Create a project and print its API key (shown only once)."""
     from queueloom.server.config import Settings
-    from queueloom.server.db import init_db, make_engine, make_session_factory, session_scope
+    from queueloom.server.db import make_engine, make_session_factory, session_scope
+    from queueloom.server.migrate import upgrade
     from queueloom.server.projects import create_project, get_project_by_name
 
     settings = Settings()
     engine = make_engine(settings.database_url)
-    init_db(engine)
+    upgrade(engine)
     with session_scope(make_session_factory(engine)) as session:
         existing = get_project_by_name(session, name)
         if existing is not None:
@@ -101,12 +124,13 @@ def project_create(
 def project_list() -> None:
     """List projects."""
     from queueloom.server.config import Settings
-    from queueloom.server.db import init_db, make_engine, make_session_factory, session_scope
+    from queueloom.server.db import make_engine, make_session_factory, session_scope
+    from queueloom.server.migrate import upgrade
     from queueloom.server.projects import list_projects
 
     settings = Settings()
     engine = make_engine(settings.database_url)
-    init_db(engine)
+    upgrade(engine)
     with session_scope(make_session_factory(engine)) as session:
         projects = list_projects(session)
         if not projects:
@@ -145,7 +169,8 @@ def alert_create(
     """Create an alert rule."""
     from queueloom.server.alerts import WEBHOOK_FORMATS
     from queueloom.server.config import Settings
-    from queueloom.server.db import init_db, make_engine, make_session_factory, session_scope
+    from queueloom.server.db import make_engine, make_session_factory, session_scope
+    from queueloom.server.migrate import upgrade
     from queueloom.server.models import AlertRule
 
     if fmt not in WEBHOOK_FORMATS:
@@ -155,7 +180,7 @@ def alert_create(
         typer.echo("--webhook-url must start with http:// or https://", err=True)
         raise typer.Exit(code=2)
     engine = make_engine(Settings().database_url)
-    init_db(engine)
+    upgrade(engine)
     with session_scope(make_session_factory(engine)) as session:
         proj = _project_or_exit(session, project)
         rule = AlertRule(
@@ -182,11 +207,12 @@ def alert_list(project: Annotated[str, typer.Argument(help="Project name.")]) ->
     from sqlalchemy import select
 
     from queueloom.server.config import Settings
-    from queueloom.server.db import init_db, make_engine, make_session_factory, session_scope
+    from queueloom.server.db import make_engine, make_session_factory, session_scope
+    from queueloom.server.migrate import upgrade
     from queueloom.server.models import AlertRule
 
     engine = make_engine(Settings().database_url)
-    init_db(engine)
+    upgrade(engine)
     with session_scope(make_session_factory(engine)) as session:
         proj = _project_or_exit(session, project)
         rules = list(

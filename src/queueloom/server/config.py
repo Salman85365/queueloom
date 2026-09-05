@@ -12,8 +12,9 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8800
     log_level: str = "info"
-    # Auto-create tables on startup. Handy for self-hosting; disable once migrations exist.
-    auto_create_schema: bool = True
+    # Run pending Alembic migrations on startup. Disable if you manage schema separately
+    # (`queueloom migrate`).
+    auto_migrate: bool = True
     dashboard_refresh_seconds: int = 15
     # Upper bound on runs scanned for percentile statistics in one request.
     stats_sample_limit: int = 50_000

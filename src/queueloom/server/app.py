@@ -13,7 +13,8 @@ from queueloom.server.alerts import run_evaluation
 from queueloom.server.api import router as api_router
 from queueloom.server.config import Settings
 from queueloom.server.dashboard import router as dashboard_router
-from queueloom.server.db import init_db, make_engine, make_session_factory
+from queueloom.server.db import make_engine, make_session_factory
+from queueloom.server.migrate import upgrade
 
 log = logging.getLogger("queueloom.server")
 
@@ -38,8 +39,8 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if settings.auto_create_schema:
-            init_db(engine)
+        if settings.auto_migrate:
+            upgrade(engine)
         log.info("QueueLoom %s ready (db=%s)", __version__, engine.url.render_as_string())
         task = None
         if settings.alert_eval_interval_seconds > 0:
