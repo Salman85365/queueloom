@@ -76,7 +76,7 @@ class TaskEvent(BaseModel):
     worker: str | None = Field(default=None, max_length=255)
 
     # Set by the client when the message is published and forwarded through message headers
-    # so the worker can report queue latency even when the client is not instrumented.
+    # so the instrumented worker can calculate queue latency from the producer's timestamp.
     published_at: datetime | None = None
     eta: datetime | None = None
     retries: int | None = Field(default=None, ge=0)

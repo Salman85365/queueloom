@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
+from math import ceil
 from typing import Any, TypeVar
 
 from sqlalchemy import Select, func, select
@@ -96,7 +97,7 @@ def percentile(values: list[float], pct: float) -> float | None:
     if not values:
         return None
     ordered = sorted(values)
-    rank = max(0, min(len(ordered) - 1, round(pct / 100.0 * len(ordered) + 0.5) - 1))
+    rank = max(0, min(len(ordered) - 1, ceil(pct / 100.0 * len(ordered)) - 1))
     return ordered[rank]
 
 

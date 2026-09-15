@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
-from queueloom.events import EventType
+from queueloom.events import EventType, TaskEvent
 from tests.conftest import ProjectInfo, at, dump, lifecycle, make_event, make_project
 
 
@@ -117,6 +117,36 @@ def test_projects_are_isolated(client: TestClient, session_factory: sessionmaker
     assert client.get("/v1/tasks", params={"since": since}, headers=p2.headers).json()["total"] == 0
     assert client.get("/v1/tasks/shared-id", headers=p2.headers).status_code == 404
     assert client.get("/v1/projects/me", headers=p2.headers).json()["name"] == "two"
+
+
+def test_stats_percentiles_with_varied_timings(client: TestClient, project: ProjectInfo) -> None:
+    events: list[TaskEvent] = []
+    for n in range(1, 21):
+        common = {"task_id": f"timing-{n}", "task_name": "app.report"}
+        events.extend(
+            [
+                make_event(
+                    EventType.PUBLISHED, timestamp=at(n * 2), published_at=at(n * 2), **common
+                ),
+                make_event(EventType.STARTED, timestamp=at(n * 2 + n / 1000), **common),
+                make_event(
+                    EventType.SUCCEEDED,
+                    timestamp=at(n * 2 + 1),
+                    runtime_ms=n * 100.0,
+                    **common,
+                ),
+            ]
+        )
+    response = client.post("/v1/events", json=dump(events), headers=project.headers)
+    assert response.status_code == 202
+    stats = client.get(
+        "/v1/stats", params={"since": at(-1).isoformat()}, headers=project.headers
+    ).json()
+    assert stats["total"] == 20
+    for summary in (stats, stats["by_task"][0]):
+        assert summary["p50_duration_ms"] == 1000.0
+        assert summary["p95_duration_ms"] == 1900.0
+        assert summary["p95_queue_latency_ms"] == 19.0
 
 
 def test_dashboard_pages_render(client: TestClient, project: ProjectInfo) -> None:

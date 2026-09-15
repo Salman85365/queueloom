@@ -12,15 +12,18 @@ environment, task and time range.
 > activities are included. APIs and storage behavior may change before a stable release.
 
 [**Download the alpha release**](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a1) ·
-[Installation guide](docs/INSTALL.md) · [Benchmark and measured results](docs/BENCHMARK.md)
+[Installation guide](docs/INSTALL.md) · [Benchmark and measured results](docs/BENCHMARK.md) ·
+[Technical walkthrough](docs/WALKTHROUGH.md) · [Give feedback](docs/FEEDBACK.md)
 
 ## Try the demo
 
 Run a real Celery worker and explore its task history in your browser. The demo uses SQLite
 and an in-memory broker, so you only need **Git and Python 3.11+** installed.
+These demo instructions use the current development branch, including fixes made after
+the packaged alpha. The [installation guide](docs/INSTALL.md) also covers the tagged release.
 
 ```bash
-git clone --branch v0.1.0a1 --depth 1 https://github.com/Salman85365/queueloom.git
+git clone --branch main --depth 1 https://github.com/Salman85365/queueloom.git
 cd queueloom
 python3 -m venv .venv
 source .venv/bin/activate
@@ -46,6 +49,10 @@ The terminal prints the SQLite file path if you want to inspect the recorded dat
 [Connect your own Celery app](#quick-start) · [Run the Docker stack](#full-stack-with-docker) ·
 [Explore the features](#what-you-get) · [Contribute](#development)
 
+For a guided investigation of a failure, retry and slow job, follow the
+[technical walkthrough](docs/WALKTHROUGH.md). Share what worked or blocked you through the
+[evaluation form](https://github.com/Salman85365/queueloom/issues/new?template=evaluation.yml).
+
 ## Why
 
 When a background job fails, the exception is only part of the story. QueueLoom brings queue
@@ -69,7 +76,7 @@ queueloom project create my-app        # prints an API key (ql_...)
 queueloom serve                        # http://127.0.0.1:8800
 ```
 
-Instrument your Celery app (client and/or worker side — both work):
+Instrument your Celery app in both the processes that publish tasks and the workers:
 
 ```python
 from celery import Celery
@@ -78,6 +85,11 @@ from queueloom.sdk.celery import instrument
 app = Celery("my_app", broker="redis://localhost:6379/0")
 instrument(app, endpoint="http://127.0.0.1:8800", api_key="ql_...", environment="prod")
 ```
+
+Worker-only instrumentation records execution and outcomes, but initial queue latency is
+unavailable without a publish timestamp from an instrumented producer. Celery signals are
+process-global: call `instrument` once per process; it observes all Celery apps in that process,
+even though an `app` argument is accepted.
 
 Or configure through the environment and call `instrument(app)` with no arguments:
 
@@ -139,7 +151,7 @@ PostgreSQL + Redis + server + an instrumented Celery worker + a producer.
 - **Diagnose**: a deterministic incident report for any window: which tasks regressed
   against the previous window (failure rate, p95 duration, queue latency, retry storms),
   failures clustered by exception with variable parts normalised, stuck tasks. Optionally
-  explained by Claude, which only ever sees that report, never raw data.
+  explained by Claude using that report, including sample exception messages and a traceback.
 - **JSON API** for everything the dashboard shows (`/docs` for OpenAPI).
 
 ## How it works
@@ -161,8 +173,9 @@ Celery worker ──task_prerun/success/──────▶ SDK ─┤ batched
 - The SDK hooks Celery signals and emits a versioned `TaskEvent` for each transition. Sending
   is a queue put; a daemon thread batches and POSTs. It never blocks or raises inside a task,
   drops (and counts) events when its bounded queue is full, and restarts itself after `fork`.
-- The publish hook stamps a `queueloom_published_at` header on the message, so the worker can
-  report queue latency even when the producer is not instrumented.
+- The instrumented producer stamps a `queueloom_published_at` header on the message. The
+  instrumented worker uses it to calculate queue latency; it cannot reconstruct a missing
+  original publish timestamp.
 - The server stores raw events unchanged and folds them into `task_runs`, the table the
   dashboard reads. Ingestion is idempotent per `event_id`, so SDK retries are safe. Out-of-order
   events fill in details without regressing state.
@@ -228,6 +241,10 @@ an optional `{"question": "..."}`. The model receives only the deterministic rep
 instructed to identify missing information under "Not enough data for". Check generated
 summaries against the report before acting on them.
 
+The report can include sample exception messages and a traceback, plus task and worker names;
+it is not automatically redacted. Expand **Report** to inspect it before sending it to an
+external provider. The deterministic report works locally without an AI provider.
+
 | Variable                      | Default         | Notes                                              |
 |-------------------------------|-----------------|----------------------------------------------------|
 | `QUEUELOOM_AI_PROVIDER`       | `auto`          | `auto` = Anthropic if a key is set, else `template` |
@@ -277,6 +294,8 @@ All settings are environment variables prefixed with `QUEUELOOM_`:
 | `QUEUELOOM_WEBHOOK_TIMEOUT_SECONDS`   | `10`                        |
 | `QUEUELOOM_DASHBOARD_REFRESH_SECONDS` | `15`                        |
 | `QUEUELOOM_STATS_SAMPLE_LIMIT`        | `50000`                     |
+| `QUEUELOOM_RETENTION_DAYS`            | `30` (`0` keeps everything) |
+| `QUEUELOOM_RETENTION_INTERVAL_SECONDS` | `21600` (`0` disables the scheduled cleanup) |
 
 PostgreSQL example: `postgresql+psycopg://user:pass@host:5432/queueloom`.
 
@@ -324,7 +343,7 @@ memory broker, so SDK behaviour is verified end to end without Docker.
 - [x] Failure-rate alerts with webhook delivery
 - [x] Alembic migrations
 - [x] Dashboard authentication (single password; multi-user projects later)
-- [ ] Retention / cleanup job for old events
+- [x] Retention / cleanup job for old events
 - [x] AI incident summaries on top of a deterministic diagnosis
 - [x] Dramatiq adapter
 - [x] RQ, FastAPI `BackgroundTasks` and Temporal adapters

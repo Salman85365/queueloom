@@ -2,7 +2,8 @@
 
 Hooks Celery's signals and emits a :class:`~queueloom.events.TaskEvent` for every lifecycle
 transition. The publish hook also injects a ``queueloom_published_at`` message header, so
-workers can report queue latency even when the producer side is not instrumented.
+instrumented workers can calculate queue latency from an instrumented producer's timestamp.
+Worker-only instrumentation cannot reconstruct a missing original publish timestamp.
 
 Usage::
 
