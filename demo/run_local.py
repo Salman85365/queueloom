@@ -86,7 +86,13 @@ def main() -> None:
     interval = 1.0 / max(args.rate, 0.01)
     sent = 0
     try:
-        with start_worker(celery_app, pool="solo", perform_ping_check=False, loglevel="WARNING"):
+        with start_worker(
+            celery_app,
+            pool="solo",
+            queues=["default", "reports"],
+            perform_ping_check=False,
+            loglevel="WARNING",
+        ):
             while deadline is None or time.monotonic() < deadline:
                 enqueue_random()
                 sent += 1

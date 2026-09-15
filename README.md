@@ -1,9 +1,9 @@
 # QueueLoom
 
-**See every background job. Understand why it failed.**
+**Follow a Python background job from queue to result.**
 
-QueueLoom is observability for Python background jobs. Drop a two-line SDK into your Celery
-app and get a timeline of every task: queued → started → succeeded / failed / retried, with
+QueueLoom helps you investigate Python background jobs. Add its SDK to your Celery
+app to collect task timelines: queued → started → succeeded / failed / retried, with
 queue latency, duration, retry counts and full exception details, filterable by project,
 environment, task and time range.
 
@@ -11,12 +11,44 @@ environment, task and time range.
 > adapters for **Dramatiq**, **RQ**, **FastAPI/Starlette background tasks** and **Temporal**
 > activities are included.
 
+## Try the demo
+
+Run a real Celery worker and explore its task history in your browser. The demo uses SQLite
+and an in-memory broker, so you only need **Git and Python 3.11+** installed.
+
+```bash
+git clone https://github.com/Salman85365/queueloom.git
+cd queueloom
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[server,celery]"
+python demo/run_local.py
+```
+
+On Windows, create the environment with `py -3 -m venv .venv` and activate it with
+`.venv\Scripts\Activate.ps1` in PowerShell instead. Check that your chosen Python is 3.11 or newer.
+
+Open **[http://127.0.0.1:8800/projects/demo](http://127.0.0.1:8800/projects/demo)** once the
+terminal prints the dashboard URL. The demo continuously submits successful, slow, retrying
+and intentionally broken tasks; their mix varies on each run.
+
+1. Watch the overview fill with task counts, failures, duration and queue latency.
+2. Open **Tasks**, filter for a failed run, and inspect its event timeline and traceback.
+3. Open **Diagnose** to explore the incident report built from the collected events.
+
+Expected task errors in the terminal are part of the demonstration. Press **Ctrl-C** to stop.
+The terminal prints the SQLite file path if you want to inspect the recorded data. If port
+8800 is already in use, run `python demo/run_local.py --port 8801` and use the printed URL.
+
+[Connect your own Celery app](#quick-start) · [Run the Docker stack](#full-stack-with-docker) ·
+[Explore the features](#what-you-get) · [Contribute](#development)
+
 ## Why
 
-Celery's built-in tooling tells you a task failed. It rarely tells you *how long it sat in the
-queue first*, *how many times it retried*, *which worker ran it*, or *what the failure rate for
-that task looks like this week versus last week*. Flower shows live state but forgets history.
-Sentry sees exceptions but not the lifecycle around them. QueueLoom stores the lifecycle.
+When a background job fails, the exception is only part of the story. QueueLoom brings queue
+latency, worker identity, retries and task outcomes into a stored event timeline, with filters
+by project, environment and time range. Use that history to investigate failures and compare
+task behavior across windows.
 
 ## Quick start
 
@@ -73,17 +105,6 @@ map onto the same event model, so the dashboard looks identical for both framewo
 Every adapter reads `QUEUELOOM_ENDPOINT`, `QUEUELOOM_API_KEY` and `QUEUELOOM_ENVIRONMENT`
 when called without arguments, and never raises into your job code: on transport problems events
 are counted and dropped.
-
-### Try it without any infrastructure
-
-```bash
-git clone https://github.com/Salman85365/queueloom && cd queueloom
-pip install -e ".[dev]"
-python demo/run_local.py
-```
-
-That starts a SQLite-backed server, an in-memory Celery broker and an in-process worker, then
-keeps enqueuing a mix of fast, slow, flaky and broken tasks. Open the printed URL.
 
 ### Full stack with Docker
 
@@ -192,8 +213,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 then press *Generate summary* on the Diagnose page or call `POST /v1/diagnosis/summary` with
-an optional `{"question": "..."}`. The model receives only the deterministic report, so it
-cannot invent telemetry; anything it could not determine is listed under "Not enough data for".
+an optional `{"question": "..."}`. The model receives only the deterministic report and is
+instructed to identify missing information under "Not enough data for". Check generated
+summaries against the report before acting on them.
 
 | Variable                      | Default         | Notes                                              |
 |-------------------------------|-----------------|----------------------------------------------------|
