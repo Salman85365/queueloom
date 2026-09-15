@@ -17,6 +17,9 @@
 <div class="headline">{{ diagnosis.headline }}</div>
 
 <h2>AI summary <span class="muted">· provider: {{ provider_name }}</span></h2>
+{% if provider_name != 'template' %}
+<p class="muted">Generating a summary sends the report below to the configured AI provider. It can include sample exception messages and a traceback. Review the report before sending sensitive data.</p>
+{% endif %}
 {% if summary_error %}<div class="error">{{ summary_error }}</div>{% endif %}
 {% if summary %}
 <div class="summary">{{ summary.text }}</div>

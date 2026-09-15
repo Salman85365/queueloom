@@ -27,17 +27,31 @@ def apply_event(run: TaskRun, event: TaskEvent) -> None:
     """Fold one event into a run. Pure with respect to the database.
 
     Events may arrive out of order (client and worker clocks, batching, retries). Descriptive
-    fields are filled when missing; state only moves forward for events that are not older
-    than the newest event already applied.
+    fields are filled when missing. Older attempts cannot overwrite the current attempt's
+    metadata, and delayed events cannot move its start/finish timestamps backward. State
+    only moves forward for events that are not older than the newest event already applied.
     """
     ts = event.timestamp
     stale = ts < run.last_event_at if run.last_event_at is not None else False
+    older_attempt = event.retries is not None and event.retries < (run.retries or 0)
+    advance_state = not stale and not older_attempt
+
+    if event.retries is not None and event.retries > (run.retries or 0):
+        # Either RETRIED or the new PUBLISHED event can arrive first. Once the retry count
+        # advances, wait for that attempt's timestamps instead of combining its publication
+        # with the previous attempt's start. A terminal-first delivery can fill these later.
+        run.published_at = None
+        run.started_at = None
+        run.finished_at = None
+        run.queue_latency_ms = None
+        run.duration_ms = None
+        run.eta = None
 
     if event.task_name and not run.task_name:
         run.task_name = event.task_name
     if event.queue and not run.queue:
         run.queue = event.queue
-    if event.worker:
+    if event.worker and not older_attempt and (not stale or run.worker is None):
         run.worker = event.worker
     if event.parent_id and not run.parent_id:
         run.parent_id = event.parent_id
@@ -47,52 +61,69 @@ def apply_event(run: TaskRun, event: TaskEvent) -> None:
         run.args_repr = event.args_repr
     if event.kwargs_repr and not run.kwargs_repr:
         run.kwargs_repr = event.kwargs_repr
-    if event.eta and not run.eta:
+    if event.eta and not older_attempt and (not stale or run.eta is None):
         run.eta = event.eta
     if event.retries is not None:
         run.retries = max(run.retries or 0, event.retries)
-    if event.published_at and (run.published_at is None or event.published_at > run.published_at):
+    if (
+        event.published_at
+        and not older_attempt
+        and (run.published_at is None or event.published_at > run.published_at)
+    ):
         run.published_at = event.published_at
+
+    # RETRIED reports the next retry count, so it can belong to the preceding attempt even
+    # when its count matches the final outcome. Do not let that delayed exception replace
+    # a newer failure; it remains available in the raw event timeline.
+    update_exception = not older_attempt and (not stale or run.exception_type is None)
 
     kind = event.event_type
     if kind == EventType.PUBLISHED:
         run.attempts = (run.attempts or 0) + 1
-        if not stale:
+        if advance_state:
             run.state = RunState.QUEUED.value
     elif kind == EventType.STARTED:
-        run.started_at = ts
-        if run.published_at is not None:
-            run.queue_latency_ms = _ms(ts, run.published_at)
-        if not stale:
+        if not older_attempt and (run.started_at is None or ts > run.started_at):
+            run.started_at = ts
+        if advance_state:
             run.state = RunState.STARTED.value
     elif kind in (EventType.SUCCEEDED, EventType.FAILED):
-        run.finished_at = ts
-        if event.runtime_ms is not None:
-            run.duration_ms = event.runtime_ms
-        elif run.started_at is not None:
-            run.duration_ms = _ms(ts, run.started_at)
-        if kind == EventType.FAILED and event.exception is not None:
+        if not older_attempt and (run.finished_at is None or ts >= run.finished_at):
+            run.finished_at = ts
+            if event.runtime_ms is not None:
+                run.duration_ms = event.runtime_ms
+            elif run.started_at is not None:
+                run.duration_ms = _ms(ts, run.started_at)
+        if kind == EventType.FAILED and event.exception is not None and update_exception:
             run.exception_type = event.exception.type
             run.exception_message = event.exception.message
             run.traceback = event.exception.traceback
-        if not stale:
+        if advance_state:
             run.state = (
                 RunState.SUCCEEDED.value if kind == EventType.SUCCEEDED else RunState.FAILED.value
             )
     elif kind == EventType.RETRIED:
-        if event.exception is not None:
+        if event.exception is not None and update_exception:
             run.exception_type = event.exception.type
             run.exception_message = event.exception.message
             run.traceback = event.exception.traceback
-        if not stale:
+        if advance_state:
             run.state = RunState.RETRYING.value
     elif kind == EventType.REVOKED:
-        run.finished_at = ts
-        if event.exception is not None:
+        if not older_attempt and (run.finished_at is None or ts > run.finished_at):
+            run.finished_at = ts
+        if event.exception is not None and update_exception:
             run.exception_type = event.exception.type
             run.exception_message = event.exception.message
-        if not stale:
+        if advance_state:
             run.state = RunState.REVOKED.value
+
+    # A terminal event can arrive before STARTED, and PUBLISHED can arrive last. Fill the
+    # derived measurements once their timestamps are available without replacing SDK runtime.
+    if run.started_at is not None and run.published_at is not None:
+        run.queue_latency_ms = _ms(run.started_at, run.published_at)
+    if run.duration_ms is None and run.started_at is not None and run.finished_at is not None:
+        run.duration_ms = _ms(run.finished_at, run.started_at)
 
     if run.last_event_at is None or ts > run.last_event_at:
         run.last_event_at = ts

@@ -1,0 +1,54 @@
+name: Evaluation feedback
+description: Tell us what you learned or what blocked you while trying QueueLoom.
+title: "[Evaluation]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Try the [technical walkthrough](https://github.com/Salman85365/queueloom/blob/main/docs/WALKTHROUGH.md).
+        Partial evaluations are welcome. This report is public; omit keys and private task data.
+  - type: input
+    id: environment
+    attributes:
+      label: Version and environment
+      description: QueueLoom release or commit, Python version, operating system, and browser.
+      placeholder: "main commit abc1234; Python 3.12; Ubuntu; Firefox"
+    validations:
+      required: true
+  - type: dropdown
+    id: progress
+    attributes:
+      label: How far did you get?
+      options:
+        - Installation blocked
+        - Installed, but demo did not start
+        - Dashboard opened, but useful data did not appear
+        - Investigated a failed task
+        - Completed the walkthrough
+        - Connected my own test application
+    validations:
+      required: true
+  - type: input
+    id: time
+    attributes:
+      label: Time to useful task data
+      description: Roughly how many minutes, or explain where you stopped.
+  - type: textarea
+    id: findings
+    attributes:
+      label: What could you explain from the dashboard?
+      description: Describe one task, retry, failure or timing question and what the UI told you.
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: What was confusing or missing?
+      description: A specific step or example helps us improve it. "Nothing noticed" is fine.
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Would this help your current workflow?
+      description: Explain the job you need to debug and which tool or logs you use today.

@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a reproducible problem with QueueLoom.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. This report is public: use synthetic data and omit
+        API keys, private URLs, and sensitive task arguments or exception text.
+  - type: input
+    id: environment
+    attributes:
+      label: Version and environment
+      description: QueueLoom release or commit, Python version, OS, framework and broker.
+      placeholder: "v0.1.0a1; Python 3.12; macOS; Celery; memory broker"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the smallest example and relevant non-secret configuration.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove secrets before pasting. Small excerpts are enough.
+      render: text

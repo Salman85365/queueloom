@@ -63,10 +63,11 @@ using your app's broker and the new QueueLoom API key.
 
 ## Try sample jobs without a broker service
 
-The repository includes a demo using SQLite and an in-memory Celery broker:
+The current development branch includes a demo using SQLite and an in-memory Celery broker,
+with demo fixes made after v0.1.0a1. To evaluate that version:
 
 ```bash
-git clone --branch v0.1.0a1 --depth 1 https://github.com/Salman85365/queueloom.git
+git clone --branch main --depth 1 https://github.com/Salman85365/queueloom.git
 cd queueloom
 python3 -m venv .venv
 source .venv/bin/activate
@@ -76,7 +77,8 @@ python demo/run_local.py
 
 Open the URL printed by the demo. It generates successful jobs, slow reports, retries, and
 intentional failures. Both the `default` and `reports` queues are consumed. See the
-[demo walkthrough](../README.md#try-the-demo) for what to inspect and how to stop it.
+[technical walkthrough](WALKTHROUGH.md) for what to inspect and how to stop it.
+Use `--branch v0.1.0a1` instead of `--branch main` to reproduce the original release's demo.
 
 ## Optional extras
 
@@ -111,4 +113,5 @@ AI is optional: local monitoring and deterministic incident reports work without
 
 For a problem report, include the QueueLoom/Python versions, operating system, framework/broker,
 reproduction steps, and the expected versus actual behavior. Use synthetic data and omit API keys
-and private task payloads. [Report an issue](https://github.com/Salman85365/queueloom/issues).
+and private task payloads. [Report a bug](https://github.com/Salman85365/queueloom/issues/new?template=bug_report.yml)
+or [share evaluation feedback](FEEDBACK.md).

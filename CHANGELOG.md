@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Calculate nearest-rank percentiles correctly at exact rank boundaries, including p50
+  for two samples and p95 for twenty samples.
+- Preserve the latest retry attempt's worker and timing details when older events arrive late.
+- Exit with a useful error when the local demo cannot start its server, and validate demo
+  port, rate and duration arguments.
+- Reuse a demo database without deleting its project and task history. The demo rotates its
+  temporary ingestion key and disables scheduled retention and alert delivery.
+
+### Documentation and evaluation
+
+- A technical walkthrough of failures, retries, queue timing and deterministic diagnosis.
+- Structured GitHub forms for bug reports and evaluation feedback.
+- Clarified producer/worker instrumentation, process-wide Celery signals, and the exception
+  samples included in optional AI reports; the dashboard now explains that data before sending.
+
+These changes are on `main`; the published v0.1.0a1 release assets are unchanged.
+
 ## 0.1.0a1
 
 First packaged alpha release, intended for evaluation and feedback.
