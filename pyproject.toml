@@ -1,18 +1,18 @@
 [build-system]
-requires = ["hatchling>=1.24"]
+requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
 name = "queueloom"
-version = "0.1.0.dev0"
-description = "See every background job. Understand why it failed. Observability for Celery tasks."
+version = "0.1.0a1"
+description = "Follow Python background jobs from queue to result."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Salman Arif" }]
 keywords = ["celery", "observability", "background-jobs", "monitoring", "redis", "rabbitmq", "fastapi"]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
   "Framework :: Celery",
   "Framework :: FastAPI",
   "Intended Audience :: Developers",
@@ -24,15 +24,16 @@ classifiers = [
   "Topic :: System :: Monitoring",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-# The SDK depends on almost nothing on purpose: it runs inside your Celery workers.
+# Keep server and framework dependencies optional for worker-only SDK installs.
 dependencies = [
   "pydantic>=2.6",
   "httpx>=0.27",
+  "typer>=0.12",
 ]
 
 [project.optional-dependencies]
-celery = ["celery>=5.3"]
-dramatiq = ["dramatiq>=1.16"]
+celery = ["celery[redis]>=5.3"]
+dramatiq = ["dramatiq[redis]>=1.16"]
 rq = ["rq>=1.16", "redis>=4.5"]
 fastapi = ["starlette>=0.37"]
 temporal = ["temporalio>=1.7"]
@@ -46,7 +47,6 @@ server = [
   "itsdangerous>=2.1",
   "python-multipart>=0.0.9",
   "pydantic-settings>=2.2",
-  "typer>=0.12",
 ]
 ai = ["anthropic>=1.0"]
 all = ["queueloom[celery,dramatiq,rq,fastapi,temporal,server,ai]"]

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from queueloom import __version__
 from queueloom.cli import app
 
 runner = CliRunner()
@@ -20,7 +21,7 @@ def db_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
 def test_version() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "queueloom" in result.output
+    assert result.output.strip() == f"queueloom {__version__}"
 
 
 def test_project_lifecycle(db_env: str) -> None:

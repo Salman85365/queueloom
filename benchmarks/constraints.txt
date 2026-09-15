@@ -1,0 +1,20 @@
+# SDK environment used for the recorded transport microbenchmark.
+# Install from the repository: python -m pip install -c benchmarks/constraints.txt .
+Pygments==2.21.0
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.19
+markdown-it-py==4.2.0
+mdurl==0.1.2
+pydantic==2.13.5
+pydantic_core==2.46.5
+rich==15.0.0
+shellingham==1.5.4
+typer==0.27.2
+typing-inspection==0.4.4
+typing_extensions==4.16.0

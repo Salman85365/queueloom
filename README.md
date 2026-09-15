@@ -7,9 +7,12 @@ app to collect task timelines: queued → started → succeeded / failed / retri
 queue latency, duration, retry counts and full exception details, filterable by project,
 environment, task and time range.
 
-> Status: pre-alpha, under active development. Primary focus is **Celery + Redis/RabbitMQ**;
+> Status: **v0.1.0a1 — alpha**, for evaluation and feedback. Primary focus is **Celery + Redis/RabbitMQ**;
 > adapters for **Dramatiq**, **RQ**, **FastAPI/Starlette background tasks** and **Temporal**
-> activities are included.
+> activities are included. APIs and storage behavior may change before a stable release.
+
+[**Download the alpha release**](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a1) ·
+[Installation guide](docs/INSTALL.md) · [Benchmark and measured results](docs/BENCHMARK.md)
 
 ## Try the demo
 
@@ -17,7 +20,7 @@ Run a real Celery worker and explore its task history in your browser. The demo 
 and an in-memory broker, so you only need **Git and Python 3.11+** installed.
 
 ```bash
-git clone https://github.com/Salman85365/queueloom.git
+git clone --branch v0.1.0a1 --depth 1 https://github.com/Salman85365/queueloom.git
 cd queueloom
 python3 -m venv .venv
 source .venv/bin/activate
@@ -52,8 +55,15 @@ task behavior across windows.
 
 ## Quick start
 
+Install the versioned wheel from the GitHub release in a fresh environment. QueueLoom is
+distributed through GitHub for this alpha; the commands below do not rely on a PyPI listing.
+For checksums, Windows setup, and other framework extras, see the [installation guide](docs/INSTALL.md).
+
 ```bash
-pip install "queueloom[all]"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install "queueloom[server,celery] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a1/queueloom-0.1.0a1-py3-none-any.whl"
+queueloom --version                   # queueloom 0.1.0a1
 
 queueloom project create my-app        # prints an API key (ql_...)
 queueloom serve                        # http://127.0.0.1:8800
@@ -91,12 +101,13 @@ instrument(broker, endpoint="http://127.0.0.1:8800", api_key="ql_...", environme
 dramatiq.set_broker(broker)
 ```
 
-Install with `pip install "queueloom[dramatiq]"`. Retries, delayed messages and skipped messages
+Choose the `dramatiq` extra in the [release install command](docs/INSTALL.md#optional-extras).
+Retries, delayed messages and skipped messages
 map onto the same event model, so the dashboard looks identical for both frameworks.
 
 ### Other frameworks
 
-| Framework | Install | How |
+| Framework | Package extra (see installation guide) | How |
 |---|---|---|
 | **RQ** | `queueloom[rq]` | `from queueloom.sdk.rq import instrument, QueueLoomQueue, QueueLoomWorker`; call `instrument(...)`, enqueue with `QueueLoomQueue`, run `rq worker -w queueloom.sdk.rq.QueueLoomWorker --queue-class queueloom.sdk.rq.QueueLoomQueue`. Retries, `enqueue_at`/`enqueue_in` and `Retry` return values are tracked. |
 | **FastAPI / Starlette background tasks** | `queueloom[fastapi]` | `from queueloom.sdk.fastapi import add_task, instrument`; `add_task(background_tasks, func, *args)` instead of `background_tasks.add_task(...)`. Each task is a run on the `background` queue. |
@@ -208,7 +219,7 @@ The Diagnose page (and `GET /v1/diagnosis`) always works without any model. To h
 explained, ranked by likely cause, with next steps:
 
 ```bash
-pip install "queueloom[ai]"
+python -m pip install "queueloom[server,ai] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a1/queueloom-0.1.0a1-py3-none-any.whl"
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
