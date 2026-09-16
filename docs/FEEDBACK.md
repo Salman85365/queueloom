@@ -7,7 +7,7 @@ feedback too; there is no need to finish the whole walkthrough.
 ## A short evaluation
 
 Allow about 10 minutes after installing dependencies. Use the
-[technical walkthrough](WALKTHROUGH.md) and its synthetic local workload:
+[v0.1.0a2 technical walkthrough](WALKTHROUGH.md) and its synthetic local workload:
 
 1. Start the demo and open the dashboard.
 2. Find a failed task and identify its exception from the timeline.
@@ -41,8 +41,8 @@ logs or screenshots.
 
 - The [release and install checks](INSTALL.md) establish that the packaged alpha can be
   installed and exercised.
-- The [benchmark](BENCHMARK.md) measures transport behavior against a local collector, with
-  raw results and explicit limits.
+- The [v0.1.0a1 benchmark](BENCHMARK.md) measures transport behavior against a local collector,
+  with raw results and explicit limits; it is historical evidence, not a new v0.1.0a2 measurement.
 - The demo shows task events reaching the dashboard with a real in-process Celery worker.
 
 These checks do not establish production reliability or replace feedback from outside

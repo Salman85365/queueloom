@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "queueloom"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Follow Python background jobs from queue to result."
 readme = "README.md"
 requires-python = ">=3.11"

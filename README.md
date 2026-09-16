@@ -7,23 +7,36 @@ app to collect task timelines: queued → started → succeeded / failed / retri
 queue latency, duration, retry counts and full exception details, filterable by project,
 environment, task and time range.
 
-> Status: **v0.1.0a1 — alpha**, for evaluation and feedback. Primary focus is **Celery + Redis/RabbitMQ**;
+> Status: **v0.1.0a2 — alpha**, for evaluation and feedback. Primary focus is **Celery + Redis/RabbitMQ**;
 > adapters for **Dramatiq**, **RQ**, **FastAPI/Starlette background tasks** and **Temporal**
 > activities are included. APIs and storage behavior may change before a stable release.
 
-[**Download the alpha release**](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a1) ·
+[**Download the alpha release**](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a2) ·
 [Installation guide](docs/INSTALL.md) · [Benchmark and measured results](docs/BENCHMARK.md) ·
 [Technical walkthrough](docs/WALKTHROUGH.md) · [Give feedback](docs/FEEDBACK.md)
+
+## Watch the 55-second demo
+
+[![Watch QueueLoom: failure, recovered retry and diagnosis](https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-demo-poster.png)](https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-demo.mp4)
+
+[**Watch / download the video**](https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-demo.mp4) ·
+[Animated preview](https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-demo-preview.gif) ·
+[Captions](https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-demo.vtt) · [Run it yourself](#try-the-demo)
+
+A silent, captioned walkthrough edited from real dashboard captures: inspect an intentional
+failure, follow a retry to success, and open the diagnosis report. The sample jobs run on a
+real local Celery worker with SQLite and an in-memory broker. Diagnosis uses the local template
+provider; this demo makes no external AI call. These are synthetic jobs, not production results.
 
 ## Try the demo
 
 Run a real Celery worker and explore its task history in your browser. The demo uses SQLite
 and an in-memory broker, so you only need **Git and Python 3.11+** installed.
-These demo instructions use the current development branch, including fixes made after
-the packaged alpha. The [installation guide](docs/INSTALL.md) also covers the tagged release.
+These instructions use the tagged **v0.1.0a2** release. The [installation guide](docs/INSTALL.md)
+also covers installing the packaged wheel.
 
 ```bash
-git clone --branch main --depth 1 https://github.com/Salman85365/queueloom.git
+git clone --branch v0.1.0a2 --depth 1 https://github.com/Salman85365/queueloom.git
 cd queueloom
 python3 -m venv .venv
 source .venv/bin/activate
@@ -69,8 +82,8 @@ For checksums, Windows setup, and other framework extras, see the [installation 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "queueloom[server,celery] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a1/queueloom-0.1.0a1-py3-none-any.whl"
-queueloom --version                   # queueloom 0.1.0a1
+python -m pip install "queueloom[server,celery] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-0.1.0a2-py3-none-any.whl"
+queueloom --version                   # queueloom 0.1.0a2
 
 queueloom project create my-app        # prints an API key (ql_...)
 queueloom serve                        # http://127.0.0.1:8800
@@ -232,7 +245,7 @@ The Diagnose page (and `GET /v1/diagnosis`) always works without any model. To h
 explained, ranked by likely cause, with next steps:
 
 ```bash
-python -m pip install "queueloom[server,ai] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a1/queueloom-0.1.0a1-py3-none-any.whl"
+python -m pip install "queueloom[server,ai] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-0.1.0a2-py3-none-any.whl"
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 

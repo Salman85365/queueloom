@@ -12,16 +12,15 @@ with synthetic jobs, inspect a failure and a recovered retry, separate queue wai
 execution time, and read a deterministic incident report. No Docker, Redis service or AI
 credentials are required. The alpha is for evaluation; its APIs and storage behavior may change.
 
-This walkthrough uses the current **`main` development branch**, including demo improvements
-made after the packaged alpha. The latest published release is separately available as
-[v0.1.0a1](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a1).
+This walkthrough uses **[v0.1.0a2](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a2)**,
+including the demo startup, database reuse and task-timing fixes in the second alpha.
 
 ## 1. Start the demo
 
 Use **Git and Python 3.11 or newer**. These commands use a macOS/Linux shell:
 
 ```bash
-git clone --branch main --depth 1 https://github.com/Salman85365/queueloom.git
+git clone --branch v0.1.0a2 --depth 1 https://github.com/Salman85365/queueloom.git
 cd queueloom
 python3 -m venv .venv
 source .venv/bin/activate
@@ -184,7 +183,7 @@ therefore reflect missing telemetry, not the absence of a lifecycle transition.
 ### What has actually been benchmarked?
 
 The [published transport microbenchmark](BENCHMARK.md) includes reproducible commands,
-event accounting and raw results. In its recorded sample, the healthy local HTTP stub
+event accounting and raw results from v0.1.0a1. In its recorded sample, the healthy local HTTP stub
 received all 10,000 measured events across five runs; the unreachable endpoint received
 none and all 10,000 were counted as dropped. The median warmed submission cost in the
 healthy case was 10.984 µs/event, with substantial variation between run averages.
