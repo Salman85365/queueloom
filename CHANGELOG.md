@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0a2 — 2026-09-16
+
+Second alpha release, bringing the demo and task-timing fixes into the installable packages.
 
 ### Fixed
 
@@ -19,7 +21,8 @@
 - Clarified producer/worker instrumentation, process-wide Celery signals, and the exception
   samples included in optional AI reports; the dashboard now explains that data before sending.
 
-These changes are on `main`; the published v0.1.0a1 release assets are unchanged.
+The installation guide and walkthrough now use the v0.1.0a2 tag for a reproducible evaluation.
+The previously published transport benchmark remains a v0.1.0a1 measurement.
 
 ## 0.1.0a1
 

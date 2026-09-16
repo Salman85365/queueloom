@@ -1,7 +1,7 @@
-# Install QueueLoom v0.1.0a1
+# Install QueueLoom v0.1.0a2
 
 This alpha is for evaluation and feedback. Python 3.11 or newer is required.
-The release is distributed through [GitHub Releases](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a1).
+The release is distributed through [GitHub Releases](https://github.com/Salman85365/queueloom/releases/tag/v0.1.0a2).
 
 ## Install the released wheel
 
@@ -12,12 +12,12 @@ mkdir queueloom-evaluation
 cd queueloom-evaluation
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "queueloom[server,celery] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a1/queueloom-0.1.0a1-py3-none-any.whl"
+python -m pip install "queueloom[server,celery] @ https://github.com/Salman85365/queueloom/releases/download/v0.1.0a2/queueloom-0.1.0a2-py3-none-any.whl"
 python -m pip check
 queueloom --version
 ```
 
-The version command should print `queueloom 0.1.0a1`. The `server` extra installs the API,
+The version command should print `queueloom 0.1.0a2`. The `server` extra installs the API,
 dashboard, CLI server dependencies, and database drivers; `celery` adds the Celery adapter's
 dependencies. The wheel contains the dashboard templates and database migrations.
 
@@ -31,16 +31,16 @@ Compare the wheel's SHA-256 digest with the matching line in that file:
 
 ```bash
 # macOS
-shasum -a 256 queueloom-0.1.0a1-py3-none-any.whl
+shasum -a 256 queueloom-0.1.0a2-py3-none-any.whl
 # Linux
-sha256sum queueloom-0.1.0a1-py3-none-any.whl
+sha256sum queueloom-0.1.0a2-py3-none-any.whl
 ```
 
-On PowerShell, use `Get-FileHash .\queueloom-0.1.0a1-py3-none-any.whl -Algorithm SHA256`.
+On PowerShell, use `Get-FileHash .\queueloom-0.1.0a2-py3-none-any.whl -Algorithm SHA256`.
 Then install the local download with:
 
 ```bash
-python -m pip install "./queueloom-0.1.0a1-py3-none-any.whl[server,celery]"
+python -m pip install "./queueloom-0.1.0a2-py3-none-any.whl[server,celery]"
 ```
 
 ## Start a local server
@@ -63,11 +63,11 @@ using your app's broker and the new QueueLoom API key.
 
 ## Try sample jobs without a broker service
 
-The current development branch includes a demo using SQLite and an in-memory Celery broker,
-with demo fixes made after v0.1.0a1. To evaluate that version:
+The v0.1.0a2 release includes a demo using SQLite and an in-memory Celery broker.
+Clone its release tag to run the same version as the installed package:
 
 ```bash
-git clone --branch main --depth 1 https://github.com/Salman85365/queueloom.git
+git clone --branch v0.1.0a2 --depth 1 https://github.com/Salman85365/queueloom.git
 cd queueloom
 python3 -m venv .venv
 source .venv/bin/activate
@@ -78,7 +78,6 @@ python demo/run_local.py
 Open the URL printed by the demo. It generates successful jobs, slow reports, retries, and
 intentional failures. Both the `default` and `reports` queues are consumed. See the
 [technical walkthrough](WALKTHROUGH.md) for what to inspect and how to stop it.
-Use `--branch v0.1.0a1` instead of `--branch main` to reproduce the original release's demo.
 
 ## Optional extras
 
@@ -105,7 +104,7 @@ AI is optional: local monitoring and deterministic incident reports work without
 - This is an alpha. Evaluate with test workloads and disposable data before relying on it.
 - The local demo uses an in-memory broker; it does not validate distributed workers or broker failover.
 - Transport delivery is best effort. Events can be dropped when buffers fill or delivery fails.
-- The benchmark measures SDK transport submission and delivery to a local test collector;
+- The published v0.1.0a1 benchmark measures SDK transport submission and delivery to a local test collector;
   it is not a production capacity or full Celery overhead benchmark. See [method and results](BENCHMARK.md).
 - Live third-party AI calls and every adapter/backend combination are not covered by the local demo.
 - Before exposing a server beyond localhost, configure dashboard authentication and HTTPS as

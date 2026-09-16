@@ -12,7 +12,7 @@ body:
     attributes:
       label: Version and environment
       description: QueueLoom release or commit, Python version, OS, framework and broker.
-      placeholder: "v0.1.0a1; Python 3.12; macOS; Celery; memory broker"
+      placeholder: "v0.1.0a2; Python 3.12; macOS; Celery; memory broker"
     validations:
       required: true
   - type: textarea
